@@ -1,0 +1,41 @@
+# build output
+build/
+.xmake/
+compile_commands.json
+.vs/
+*.user
+
+# vmware lab artifacts (never committed)
+*.vmdk
+*.vmem
+*.vmsd
+*.vmsn
+*.vmss
+*.nvram
+*.lck/
+*.log
+!docs/evidence/**/*.log
+*.png
+!docs/evidence/**/*.png
+*.vmx
+!tests/fixtures/**/*.vmx
+
+# test drivers / binaries built locally
+*.sys
+*.pdb
+*.ilk
+*.obj
+*.exe
+!scripts/**/*.exe
+
+# secrets / local certs
+certs/
+*.pfx
+*.pvk
+*.snk
+*.pem
+
+# misc
+minidumps/
+*.dmp
+.DS_Store

@@ -1,0 +1,23 @@
+---
+Language:        Cpp
+BasedOnStyle:  Google
+
+AccessModifierOffset: -1
+
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortBlocksOnASingleLine: Never
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+ColumnLimit:     100
+IndentWidth:     4
+UseTab:          Never
+TabWidth:        4
+
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Windows SDK headers are order sensitive (<windows.h> before the rest) so
+# include order stays a manual decision and clang-format never rewrites it.
+SortIncludes: false

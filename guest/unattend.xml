@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  blook-vmware-environment: guest answer file for the *host-side* base image
+  build.
+
+  `bvmenv base build` does not drive the interactive Windows Setup UI: it
+  partitions a VHD on the host, applies install.wim with DISM and converts the
+  result to a VMDK. Windows therefore boots straight into the `specialize` and
+  `oobeSystem` passes, which this file drives. (On this media Windows Setup does
+  not pick up an answer file from a second CD/floppy/hard disk, and VMware's EFI
+  firmware will not boot the install media from SATA, so the DISM path is both
+  faster and deterministic.)
+
+  Guest dev credentials: blook / blook (local administrator).
+-->
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-Shell-Setup"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <ComputerName>BLOOK-BASE</ComputerName>
+      <TimeZone>China Standard Time</TimeZone>
+      <RegisteredOwner>blook</RegisteredOwner>
+      <RegisteredOrganization>blook</RegisteredOrganization>
+    </component>
+
+    <component name="Microsoft-Windows-Security-SPP"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <SkipRearm>1</SkipRearm>
+    </component>
+
+    <component name="Microsoft-Windows-Deployment"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <RunSynchronous>
+        <!-- Documented dev account. -->
+        <RunSynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <Description>create blook user</Description>
+          <Path>cmd /c net user blook blook /add /expires:never</Path>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>2</Order>
+          <Description>blook is administrator</Description>
+          <Path>cmd /c net localgroup Administrators blook /add</Path>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>3</Order>
+          <Description>enable builtin administrator with the dev password</Description>
+          <Path>cmd /c net user Administrator blook /active:yes</Path>
+        </RunSynchronousCommand>
+        <!-- Keep OOBE offline capable. -->
+        <RunSynchronousCommand wcm:action="add">
+          <Order>4</Order>
+          <Description>OOBE bypass NRO</Description>
+          <Path>reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE" /v BypassNRO /t REG_DWORD /d 1 /f</Path>
+        </RunSynchronousCommand>
+        <!-- Provisioning payload is pre-staged on the system disk by the host:
+             copies the scripts, registers the SYSTEM boot task that installs
+             VMware Tools and applies the test-VM baseline. -->
+        <RunSynchronousCommand wcm:action="add">
+          <Order>5</Order>
+          <Description>stage guest provisioning</Description>
+          <Path>cmd /c if exist C:\blook\stage.cmd call C:\blook\stage.cmd</Path>
+        </RunSynchronousCommand>
+      </RunSynchronous>
+    </component>
+  </settings>
+
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-International-Core"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <InputLocale>0804:00000804</InputLocale>
+      <SystemLocale>zh-CN</SystemLocale>
+      <UILanguage>zh-CN</UILanguage>
+      <UserLocale>zh-CN</UserLocale>
+    </component>
+
+    <component name="Microsoft-Windows-Shell-Setup"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <OOBE>
+        <HideEULAPage>true</HideEULAPage>
+        <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
+        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+        <HideLocalAccountScreen>true</HideLocalAccountScreen>
+        <ProtectYourPC>3</ProtectYourPC>
+        <NetworkLocation>Work</NetworkLocation>
+      </OOBE>
+
+      <UserAccounts>
+        <AdministratorPassword>
+          <Value>blook</Value>
+          <PlainText>true</PlainText>
+        </AdministratorPassword>
+        <LocalAccounts>
+          <LocalAccount wcm:action="add">
+            <Name>blook</Name>
+            <DisplayName>blook</DisplayName>
+            <Description>blook test account</Description>
+            <Group>Administrators</Group>
+            <Password>
+              <Value>blook</Value>
+              <PlainText>true</PlainText>
+            </Password>
+          </LocalAccount>
+        </LocalAccounts>
+      </UserAccounts>
+
+      <AutoLogon>
+        <Username>blook</Username>
+        <Password>
+          <Value>blook</Value>
+          <PlainText>true</PlainText>
+        </Password>
+        <Enabled>true</Enabled>
+        <LogonCount>2</LogonCount>
+      </AutoLogon>
+
+      <FirstLogonCommands>
+        <!-- Belt and braces: kick the provisioning task if it is not running. -->
+        <SynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <Description>ensure blook provisioning task</Description>
+          <CommandLine>cmd.exe /c if exist C:\blook\stage.cmd (schtasks /run /tn blook-provision)</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
+      </FirstLogonCommands>
+    </component>
+  </settings>
+</unattend>

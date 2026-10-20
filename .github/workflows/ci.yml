@@ -1,0 +1,145 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: build + unit tests (windows-latest)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          actions-cache-folder: .xmake-cache
+
+      - name: Configure
+        run: xmake f -y -m releasedbg
+
+      - name: Build
+        run: xmake -y
+
+      - name: Unit tests
+        run: xmake run bvmenv-tests
+
+      - name: CLI smoke test
+        run: |
+          .\build\windows\x64\releasedbg\bvmenv.exe version
+          .\build\windows\x64\releasedbg\bvmenv.exe --help
+          .\build\windows\x64\releasedbg\bvmenv.exe doctor --json | Out-String | Write-Host
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvmenv-windows-x64
+          path: |
+            build/windows/x64/releasedbg/bvmenv.exe
+            build/windows/x64/releasedbg/bvmenv-tests.exe
+            build/windows/x64/releasedbg/guest-nested-virt-check.exe
+          if-no-files-found: error
+
+  format:
+    name: clang-format
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          choco install llvm --no-progress -y
+          "C:\Program Files\LLVM\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
+
+      - name: Check formatting
+        run: |
+          $files = Get-ChildItem -Recurse -Include *.cc,*.h -File src,include,tests |
+            Where-Object { $_.FullName -notmatch '\\build\\' }
+          if (-not $files) { Write-Error 'no sources found'; exit 1 }
+          $failed = $false
+          foreach ($f in $files) {
+            clang-format --dry-run --Werror --style=file $f.FullName
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          if ($failed) { Write-Error 'clang-format check failed'; exit 1 }
+          Write-Host "clang-format ok for $($files.Count) files"
+
+  guest-drivers:
+    name: in-guest test drivers (WDK)
+    runs-on: windows-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          actions-cache-folder: .xmake-cache
+
+      - name: Detect WDK
+        id: wdk
+        shell: pwsh
+        run: |
+          $roots = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\Include' -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^10\.' }
+          if (-not $roots) { Write-Host 'WDK not present on this image, skipping'; exit 0 }
+          $ver = $roots[-1].Name
+          Write-Host "WDK $ver found"
+          "present=true" | Out-File -Append $env:GITHUB_OUTPUT
+
+      - name: Build guest drivers
+        if: steps.wdk.outputs.present == 'true'
+        run: |
+          xmake f -y --guest_drivers=y
+          xmake -y guest-bsod-driver
+          xmake -y guest-hang-driver
+
+  release-zip:
+    name: package zip (release build, static runtime)
+    runs-on: windows-latest
+    needs: [build-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          actions-cache-folder: .xmake-cache
+
+      - name: Build with static runtime
+        shell: pwsh
+        run: |
+          $env:BVMENV_VERSION = (Get-Content version.txt -Raw).Trim()
+          xmake f -y -m release --static_runtime=y
+          xmake -y bvmenv
+          if (-not (Test-Path build/windows/x64/release/bvmenv.exe)) { throw 'bvmenv.exe missing' }
+
+      - name: Assemble package
+        shell: pwsh
+        run: |
+          $version = (Get-Content version.txt -Raw).Trim()
+          $stage = "pkg/blook-vmware-environment-$version"
+          New-Item -ItemType Directory -Force -Path "$stage/bin/x64" | Out-Null
+          Copy-Item build/windows/x64/release/bvmenv.exe "$stage/bin/x64/"
+          Copy-Item guest,docs,scripts -Destination $stage -Recurse
+          Copy-Item README.md,LICENSE,CHANGELOG.md,version.txt,xmake-package -Destination $stage -Recurse
+          Compress-Archive -Path "$stage/*" -DestinationPath "blook-vmware-environment-$version-windows-x64.zip"
+          (Get-FileHash "blook-vmware-environment-$version-windows-x64.zip" -Algorithm SHA256).Hash.ToLower() |
+            Out-File -Encoding ascii "blook-vmware-environment-$version-windows-x64.zip.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-package
+          path: |
+            blook-vmware-environment-*-windows-x64.zip
+            blook-vmware-environment-*-windows-x64.zip.sha256
+          if-no-files-found: error
