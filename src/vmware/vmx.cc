@@ -11,10 +11,12 @@ namespace {
 std::string unquote(std::string_view raw, bool* quoted) {
     std::string value = trim(raw);
     if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
-        if (quoted) *quoted = true;
+        if (quoted)
+            *quoted = true;
         return value.substr(1, value.size() - 2);
     }
-    if (quoted) *quoted = false;
+    if (quoted)
+        *quoted = false;
     return value;
 }
 
@@ -25,16 +27,20 @@ Vmx Vmx::parse(std::string_view text) {
     std::size_t pos = 0;
     while (pos < text.size()) {
         std::size_t eol = text.find('\n', pos);
-        if (eol == std::string_view::npos) eol = text.size();
+        if (eol == std::string_view::npos)
+            eol = text.size();
         std::string line = trim(text.substr(pos, eol - pos));
         pos = eol + 1;
-        if (line.empty() || line[0] == '#' || line[0] == ';') continue;
+        if (line.empty() || line[0] == '#' || line[0] == ';')
+            continue;
         const std::size_t eq = line.find('=');
-        if (eq == std::string::npos) continue;
+        if (eq == std::string::npos)
+            continue;
         Entry entry;
         entry.key = trim(line.substr(0, eq));
         entry.value = unquote(line.substr(eq + 1), &entry.quoted);
-        if (entry.key.empty()) continue;
+        if (entry.key.empty())
+            continue;
         doc.entries_.push_back(std::move(entry));
     }
     return doc;
@@ -61,7 +67,9 @@ std::string Vmx::dump() const {
     return out;
 }
 
-void Vmx::save(const std::filesystem::path& path) const { write_text(path, dump()); }
+void Vmx::save(const std::filesystem::path& path) const {
+    write_text(path, dump());
+}
 
 bool Vmx::has(std::string_view key) const {
     return std::any_of(entries_.begin(), entries_.end(),
@@ -70,14 +78,16 @@ bool Vmx::has(std::string_view key) const {
 
 std::string Vmx::get(std::string_view key, std::string_view fallback) const {
     for (const auto& entry : entries_) {
-        if (entry.key == key) return entry.value;
+        if (entry.key == key)
+            return entry.value;
     }
     return std::string(fallback);
 }
 
 int Vmx::get_int(std::string_view key, int fallback) const {
     const std::string value = get(key);
-    if (value.empty()) return fallback;
+    if (value.empty())
+        return fallback;
     try {
         return std::stoi(value);
     } catch (...) {
@@ -87,8 +97,10 @@ int Vmx::get_int(std::string_view key, int fallback) const {
 
 bool Vmx::get_bool(std::string_view key, bool fallback) const {
     const std::string value = to_lower(get(key));
-    if (value == "true") return true;
-    if (value == "false") return false;
+    if (value == "true")
+        return true;
+    if (value == "false")
+        return false;
     return fallback;
 }
 

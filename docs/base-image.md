@@ -71,6 +71,18 @@ two phases, idempotent, everything logged to `C:\blook\provision.log`:
 
 **Phase 2** (second boot)
 
+* writes **persistent autologon** to
+  `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon`
+  (`AutoAdminLogon`, `DefaultUserName/password`, `ForceAutoLogon`); the
+  unattend `LogonCount` only covers the first logons, and a fork that lands on
+  the logon screen cannot be used for guest operations at all,
+* re-applies `bcdedit /set {current} hypervisorlaunchtype off` and records the
+  raw `bcdedit /enum` lines plus `Win32_ComputerSystem.HypervisorPresent` in
+  `provision.json`,
+* loads the ring 0 **VT-x probe** (`guest-vtx-probe.sys`) and records
+  `CPUID.1:ECX.VMX`, `IA32_FEATURE_CONTROL` lock/VMXON-outside-SMX and
+  `IA32_VMX_BASIC` in `provision.json.nested_virt`,
+
 * waits for the `VMTools` service, verifies the baseline with `bcdedit`,
 * writes `C:\blook\provision.json` (schema `bvmenv.provision.v1`),
 * removes the provisioning task, writes `C:\blook\provision.done`, shuts down.
@@ -79,8 +91,11 @@ The host then snapshots the powered-off VM as `base`.
 
 ## Contract verification
 
-`bvmenv base verify` forks a temporary VM from the snapshot and runs
-`guest/blook/verify.ps1` plus `nested-virt-check.exe`. It asserts:
+`bvmenv base verify` is host-side and fast by default: it asserts the snapshot
+exists, the base is powered off and the disk/vmx are present, and it never boots
+anything. `bvmenv base verify --deep` additionally forks a throwaway VM from the
+snapshot and runs `guest/blook/verify.ps1` plus `nested-virt-check.exe`, and it
+fails hard when `provision.json.failures` is non-empty. The deep checks assert:
 
 * `testsigning on`, `nointegritychecks on`, `debug on`, serial debug settings,
 * `hypervisorlaunchtype off`, VBS and HVCI off,

@@ -50,7 +50,7 @@ void append_escaped(std::string& out, std::string_view s) {
 }
 
 class Parser {
-public:
+   public:
     Parser(std::string_view text, std::string* error) : text_(text), error_(error) {}
 
     Value parse() {
@@ -65,7 +65,7 @@ public:
 
     bool ok() const { return ok_; }
 
-private:
+   private:
     void fail(const std::string& message) {
         if (ok_) {
             ok_ = false;
@@ -95,18 +95,25 @@ private:
     }
 
     Value parse_value() {
-        if (!ok_) return Value{};
+        if (!ok_)
+            return Value{};
         if (pos_ >= text_.size()) {
             fail("unexpected end of input");
             return Value{};
         }
         char c = text_[pos_];
-        if (c == '{') return parse_object();
-        if (c == '[') return parse_array();
-        if (c == '"') return Value(parse_string());
-        if (c == 't') return parse_literal("true", Value(true));
-        if (c == 'f') return parse_literal("false", Value(false));
-        if (c == 'n') return parse_literal("null", Value{});
+        if (c == '{')
+            return parse_object();
+        if (c == '[')
+            return parse_array();
+        if (c == '"')
+            return Value(parse_string());
+        if (c == 't')
+            return parse_literal("true", Value(true));
+        if (c == 'f')
+            return parse_literal("false", Value(false));
+        if (c == 'n')
+            return parse_literal("null", Value{});
         return parse_number();
     }
 
@@ -121,7 +128,8 @@ private:
 
     Value parse_number() {
         std::size_t start = pos_;
-        if (pos_ < text_.size() && (text_[pos_] == '-' || text_[pos_] == '+')) ++pos_;
+        if (pos_ < text_.size() && (text_[pos_] == '-' || text_[pos_] == '+'))
+            ++pos_;
         while (pos_ < text_.size()) {
             char c = text_[pos_];
             if ((c >= '0' && c <= '9') || c == '.' || c == 'e' || c == 'E' || c == '-' ||
@@ -152,12 +160,14 @@ private:
         std::string out;
         while (pos_ < text_.size()) {
             char c = text_[pos_++];
-            if (c == '"') return out;
+            if (c == '"')
+                return out;
             if (c != '\\') {
                 out.push_back(c);
                 continue;
             }
-            if (pos_ >= text_.size()) break;
+            if (pos_ >= text_.size())
+                break;
             char esc = text_[pos_++];
             switch (esc) {
                 case '"':
@@ -227,7 +237,8 @@ private:
         consume('[');
         Array items;
         skip_ws();
-        if (consume(']')) return Value(std::move(items));
+        if (consume(']'))
+            return Value(std::move(items));
         for (;;) {
             items.push_back(parse_value());
             skip_ws();
@@ -235,7 +246,8 @@ private:
                 skip_ws();
                 continue;
             }
-            if (consume(']')) break;
+            if (consume(']'))
+                break;
             fail("expected ',' or ']'");
             break;
         }
@@ -246,7 +258,8 @@ private:
         consume('{');
         Object fields;
         skip_ws();
-        if (consume('}')) return Value(std::move(fields));
+        if (consume('}'))
+            return Value(std::move(fields));
         for (;;) {
             skip_ws();
             if (pos_ >= text_.size() || text_[pos_] != '"') {
@@ -262,8 +275,10 @@ private:
             skip_ws();
             fields.emplace(std::move(key), parse_value());
             skip_ws();
-            if (consume(',')) continue;
-            if (consume('}')) break;
+            if (consume(','))
+                continue;
+            if (consume('}'))
+                break;
             fail("expected ',' or '}'");
             break;
         }
@@ -299,9 +314,11 @@ Value& Value::operator[](std::string_view key) {
 
 const Value& Value::operator[](std::string_view key) const {
     static const Value empty;
-    if (type_ != Type::Object) return empty;
+    if (type_ != Type::Object)
+        return empty;
     auto it = object_.find(key);
-    if (it == object_.end()) return empty;
+    if (it == object_.end())
+        return empty;
     return it->second;
 }
 
@@ -328,7 +345,8 @@ void Value::dump_to(std::string& out, int indent, int depth) const {
             break;
         case Type::Number: {
             char buf[64];
-            if (std::isfinite(number_) && number_ == static_cast<double>(static_cast<long long>(number_)) &&
+            if (std::isfinite(number_) &&
+                number_ == static_cast<double>(static_cast<long long>(number_)) &&
                 std::abs(number_) < 9.0e15) {
                 std::snprintf(buf, sizeof(buf), "%lld", static_cast<long long>(number_));
             } else {
@@ -350,7 +368,8 @@ void Value::dump_to(std::string& out, int indent, int depth) const {
             for (std::size_t i = 0; i < array_.size(); ++i) {
                 out += pad;
                 array_[i].dump_to(out, indent, depth + 1);
-                if (i + 1 != array_.size()) out += ',';
+                if (i + 1 != array_.size())
+                    out += ',';
                 out += nl;
             }
             out += pad_close;
@@ -370,7 +389,8 @@ void Value::dump_to(std::string& out, int indent, int depth) const {
                 append_escaped(out, key);
                 out += indent > 0 ? ": " : ":";
                 value.dump_to(out, indent, depth + 1);
-                if (++i != object_.size()) out += ',';
+                if (++i != object_.size())
+                    out += ',';
                 out += nl;
             }
             out += pad_close;
@@ -391,7 +411,8 @@ std::optional<Value> Value::parse(std::string_view text, std::string* error) {
     std::string local_error;
     Parser parser(text, error ? error : &local_error);
     Value v = parser.parse();
-    if (!parser.ok()) return std::nullopt;
+    if (!parser.ok())
+        return std::nullopt;
     return v;
 }
 

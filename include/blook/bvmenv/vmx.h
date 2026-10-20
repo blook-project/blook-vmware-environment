@@ -14,7 +14,7 @@
 namespace blook::bvmenv {
 
 class Vmx {
-public:
+   public:
     struct Entry {
         std::string key;
         std::string value;
@@ -29,8 +29,7 @@ public:
     void save(const std::filesystem::path& path) const;
 
     [[nodiscard]] bool has(std::string_view key) const;
-    [[nodiscard]] std::string get(std::string_view key,
-                                  std::string_view fallback = {}) const;
+    [[nodiscard]] std::string get(std::string_view key, std::string_view fallback = {}) const;
     [[nodiscard]] int get_int(std::string_view key, int fallback = 0) const;
     [[nodiscard]] bool get_bool(std::string_view key, bool fallback = false) const;
 
@@ -39,7 +38,7 @@ public:
 
     [[nodiscard]] const std::vector<Entry>& entries() const { return entries_; }
 
-private:
+   private:
     std::vector<Entry> entries_;
 };
 

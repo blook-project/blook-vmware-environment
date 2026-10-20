@@ -26,11 +26,14 @@ struct Config {
     int default_cpus = 4;
     int default_memory_mb = 6144;
     int default_timeout_s = 120;
-    int hang_samples = 3;              // consecutive identical frames = hang suspect
+    int hang_samples = 3;  // consecutive identical frames = hang suspect
+    // Hard wall-clock timeout applied to every external command that does not
+    // ask for its own (BVMENV_CMD_TIMEOUT_MS overrides).
+    int command_timeout_ms = 300000;
     int hang_sample_interval_ms = 2000;
 
     bool verbose = false;
-    std::filesystem::path log_file;    // --verbose target
+    std::filesystem::path log_file;  // --verbose target
 
     // Absolute paths derived from vm_root.
     [[nodiscard]] std::filesystem::path base_dir() const { return vm_root / "base"; }

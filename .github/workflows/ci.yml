@@ -32,10 +32,24 @@ jobs:
         run: xmake run bvmenv-tests
 
       - name: CLI smoke test
+        shell: pwsh
         run: |
-          .\build\windows\x64\releasedbg\bvmenv.exe version
-          .\build\windows\x64\releasedbg\bvmenv.exe --help
-          .\build\windows\x64\releasedbg\bvmenv.exe doctor --json | Out-String | Write-Host
+          $exe = '.\build\windows\x64\releasedbg\bvmenv.exe'
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'version failed' }
+          & $exe --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'help failed' }
+          # The runner has no VMware Workstation, so `doctor` must degrade
+          # gracefully (JSON error, non-zero exit) instead of crashing.
+          $json = & $exe doctor --json 2>&1 | Out-String
+          Write-Host $json
+          $report = $json | ConvertFrom-Json -ErrorAction Stop
+          if ($report.schema -ne 'bvmenv.doctor.v1') { throw 'doctor output is not valid JSON' }
+          if ($report.ok) {
+            Write-Host 'doctor reports a working VMware host'
+          } else {
+            Write-Warning "doctor ok=false (expected without VMware): $($report.config_error)"
+          }
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -53,10 +67,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install clang-format
+      - name: Install clang-format (pinned)
+        shell: pwsh
         run: |
-          choco install llvm --no-progress -y
-          "C:\Program Files\LLVM\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
+          python -m pip install --quiet clang-format==20.1.0
+          $dir = python -c "import site,os;print(os.path.join(site.getsitepackages()[-1],'clang_format','data','bin'))"
+          if (-not (Test-Path (Join-Path $dir 'clang-format.exe'))) {
+            choco install llvm --no-progress -y
+            $dir = 'C:\Program Files\LLVM\bin'
+          }
+          Write-Host "clang-format dir: $dir"
+          $dir | Out-File -Append -Encoding ascii $env:GITHUB_PATH
+          & (Join-Path $dir 'clang-format.exe') --version
 
       - name: Check formatting
         run: |
@@ -88,17 +110,24 @@ jobs:
         id: wdk
         shell: pwsh
         run: |
-          $roots = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\Include' -Directory -ErrorAction SilentlyContinue |
+          $root = 'C:\Program Files (x86)\Windows Kits\10'
+          $roots = Get-ChildItem "$root\Include" -Directory -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -match '^10\.' }
           if (-not $roots) { Write-Host 'WDK not present on this image, skipping'; exit 0 }
           $ver = $roots[-1].Name
           Write-Host "WDK $ver found"
           "present=true" | Out-File -Append $env:GITHUB_OUTPUT
+          "wdk_dir=$root" | Out-File -Append $env:GITHUB_OUTPUT
 
       - name: Build guest drivers
         if: steps.wdk.outputs.present == 'true'
+        shell: pwsh
+        env:
+          WDKContentRoot: ${{ steps.wdk.outputs.wdk_dir }}
         run: |
-          xmake f -y --guest_drivers=y
+          # xmake's WDK rule needs to be told where the WDK lives on CI images.
+          xmake f -y --guest_drivers=y --wdk="$env:WDKContentRoot"
+          xmake -y guest-vtx-probe
           xmake -y guest-bsod-driver
           xmake -y guest-hang-driver
 

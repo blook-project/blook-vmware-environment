@@ -21,7 +21,8 @@ std::vector<std::string> collect_argv(int argc, char** argv) {
         const int width = MultiByteToWideChar(CP_ACP, 0, argv[i], -1, nullptr, 0);
         std::wstring wide(static_cast<std::size_t>(width), L'\0');
         MultiByteToWideChar(CP_ACP, 0, argv[i], -1, wide.data(), width);
-        if (!wide.empty() && wide.back() == L'\0') wide.pop_back();
+        if (!wide.empty() && wide.back() == L'\0')
+            wide.pop_back();
         out.push_back(to_utf8(wide));
     }
     return out;
@@ -29,7 +30,8 @@ std::vector<std::string> collect_argv(int argc, char** argv) {
 
 bool wants_json(const std::vector<std::string>& argv) {
     for (const auto& arg : argv) {
-        if (arg == "--json") return true;
+        if (arg == "--json")
+            return true;
     }
     return false;
 }
@@ -37,7 +39,8 @@ bool wants_json(const std::vector<std::string>& argv) {
 // `base build` needs an elevated token (diskpart/dism/bcdboot). Re-exec through
 // gsudo when available so the user still gets a one-command experience.
 int maybe_reexec_elevated(const std::vector<std::string>& argv) {
-    if (is_process_elevated()) return -1;
+    if (is_process_elevated())
+        return -1;
     const std::wstring gsudo = find_executable(L"gsudo");
     if (gsudo.empty()) {
         std::cerr << "bvmenv: base build requires an elevated shell (diskpart/dism/bcdboot);\n"
@@ -47,7 +50,8 @@ int maybe_reexec_elevated(const std::vector<std::string>& argv) {
     wchar_t self[MAX_PATH * 2];
     const DWORD len = GetModuleFileNameW(nullptr, self, static_cast<DWORD>(std::size(self)));
     std::vector<std::wstring> call{gsudo, L"-d", std::wstring(self, len)};
-    for (const auto& arg : argv) call.push_back(to_wide(arg));
+    for (const auto& arg : argv)
+        call.push_back(to_wide(arg));
     ProcessOptions options;
     options.command_line = build_command_line(call);
     const ProcessResult result = run_process(options);
@@ -63,7 +67,8 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
         print_help();
         return 0;
     }
-    if (command == "version" || command == "--version") return cmd_version(ctx);
+    if (command == "version" || command == "--version")
+        return cmd_version(ctx);
 
     const std::vector<std::string> rest(argv.begin() + 1, argv.end());
 
@@ -72,10 +77,12 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
         if (sub == "build" || sub == "verify") {
             if (!is_process_elevated() && sub == "build") {
                 const int rc = maybe_reexec_elevated(argv);
-                if (rc >= 0) return rc;
+                if (rc >= 0)
+                    return rc;
             }
-            return cmd_base(ctx, std::vector<std::string>(rest.begin() + std::min<std::size_t>(1, rest.size()),
-                                                         rest.end()),
+            return cmd_base(ctx,
+                            std::vector<std::string>(
+                                rest.begin() + std::min<std::size_t>(1, rest.size()), rest.end()),
                             sub == "verify");
         }
         std::cerr << "bvmenv: unknown base subcommand: " << sub << "\n";
@@ -84,8 +91,8 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
 
     // Shared flag sets.
     const std::vector<std::string> boolean_flags = {
-        "json",  "verbose", "force",  "elevated", "hard",   "soft", "no-start",
-        "start", "no-ocr",  "help",   "all",      "pristine",
+        "json",   "verbose", "force", "elevated", "hard", "soft",       "no-start", "start",
+        "no-ocr", "help",    "all",   "pristine", "deep", "no-capture", "gui",      "classify",
     };
 
     if (command == "create") {
@@ -94,25 +101,38 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
     if (command == "delete" || command == "destroy" || command == "remove") {
         return cmd_delete(ctx, parse_args(rest, boolean_flags));
     }
-    if (command == "start") return cmd_start_stop(ctx, parse_args(rest, boolean_flags), true);
-    if (command == "stop") return cmd_start_stop(ctx, parse_args(rest, boolean_flags), false);
-    if (command == "reset") return cmd_reset(ctx, parse_args(rest, boolean_flags));
-    if (command == "list") return cmd_list(ctx, parse_args(rest, boolean_flags));
+    if (command == "start")
+        return cmd_start_stop(ctx, parse_args(rest, boolean_flags), true);
+    if (command == "stop")
+        return cmd_start_stop(ctx, parse_args(rest, boolean_flags), false);
+    if (command == "reset")
+        return cmd_reset(ctx, parse_args(rest, boolean_flags));
+    if (command == "list")
+        return cmd_list(ctx, parse_args(rest, boolean_flags));
     if (command == "state" || command == "status") {
         return cmd_state(ctx, parse_args(rest, boolean_flags));
     }
-    if (command == "screenshot") return cmd_screenshot(ctx, parse_args(rest, boolean_flags));
-    if (command == "exec" || command == "run") return cmd_exec(ctx, parse_args(rest, boolean_flags));
-    if (command == "push") return cmd_push_pull(ctx, parse_args(rest, boolean_flags), true);
-    if (command == "pull") return cmd_push_pull(ctx, parse_args(rest, boolean_flags), false);
-    if (command == "e2e") return cmd_e2e(ctx, parse_args(rest, boolean_flags));
+    if (command == "screenshot")
+        return cmd_screenshot(ctx, parse_args(rest, boolean_flags));
+    if (command == "exec" || command == "run")
+        return cmd_exec(ctx, parse_args(rest, boolean_flags));
+    if (command == "push")
+        return cmd_push_pull(ctx, parse_args(rest, boolean_flags), true);
+    if (command == "pull")
+        return cmd_push_pull(ctx, parse_args(rest, boolean_flags), false);
+    if (command == "e2e")
+        return cmd_e2e(ctx, parse_args(rest, boolean_flags));
     if (command == "wait-ready" || command == "wait") {
         return cmd_wait_ready(ctx, parse_args(rest, boolean_flags));
     }
-    if (command == "key" || command == "keys") return cmd_key(ctx, parse_args(rest, boolean_flags));
-    if (command == "crash") return cmd_crash(ctx, parse_args(rest, boolean_flags));
-    if (command == "doctor") return cmd_doctor(ctx, parse_args(rest, boolean_flags));
-    if (command == "selftest") return cmd_selftest(ctx, parse_args(rest, boolean_flags));
+    if (command == "key" || command == "keys")
+        return cmd_key(ctx, parse_args(rest, boolean_flags));
+    if (command == "crash")
+        return cmd_crash(ctx, parse_args(rest, boolean_flags));
+    if (command == "doctor")
+        return cmd_doctor(ctx, parse_args(rest, boolean_flags));
+    if (command == "selftest")
+        return cmd_selftest(ctx, parse_args(rest, boolean_flags));
 
     std::cerr << "bvmenv: unknown command: " << command << "\n";
     print_help();
@@ -131,7 +151,8 @@ int main(int argc, char** argv) {
     Config config = Config::load();
     config.verbose = false;
     for (const auto& arg : args) {
-        if (arg == "--verbose" || arg == "-v") config.verbose = true;
+        if (arg == "--verbose" || arg == "-v")
+            config.verbose = true;
     }
     config.log_file = config.vm_root / "bvmenv.log";
 

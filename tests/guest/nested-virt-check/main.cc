@@ -56,7 +56,8 @@ int main() {
     const bool hypervisor_present = (leaf1.ecx & (1u << 31)) != 0;
 
     char hypervisor_vendor[13] = {0};
-    if (hypervisor_present) vendor_string(0x40000000, hypervisor_vendor);
+    if (hypervisor_present)
+        vendor_string(0x40000000, hypervisor_vendor);
 
     const BOOL firmware_virt = IsProcessorFeaturePresent(20 /* PF_VIRT_FIRMWARE_ENABLED */);
 

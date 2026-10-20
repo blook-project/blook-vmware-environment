@@ -44,7 +44,7 @@ and optional OCR text, which is why it is unit tested with synthetic inputs:
 
 | Class | Signal |
 | --- | --- |
-| `bsod` | bugcheck text in OCR (authoritative), else a dominantly blue frame with light text |
+| `bsod` | bugcheck text in OCR (authoritative), else a dominantly blue frame with light text **and no guest heartbeat** (blue + live guest is the logon UI) |
 | `black` | ≥85 % near-black, no light content |
 | `boot` | ≥85 % near-black with a little light content (firmware/boot logo) |
 | `login` | logon UI markers in OCR (`登录`, `sign in`, `其他用户`, …) |
@@ -54,6 +54,20 @@ and optional OCR text, which is why it is unit tested with synthetic inputs:
 
 `confidence` and `reason` are part of the contract only as diagnostics: do not
 build logic on thresholds, use `classification` (and `stop_code` for bugchecks).
+
+### False positive protection
+
+Colour alone cannot separate a bugcheck from the Windows logon screen (both are
+dark blue with light text), and a false `bsod` makes every downstream e2e reset
+its VM. The classifier therefore takes host-side corroboration into account:
+
+* `bsod` is reported for a blue frame only when VMware Tools is not running (or
+  guest operations do not answer) — or when OCR found bugcheck text;
+* a blue frame with a **live** guest is reported as `login` (the logon UI);
+* `hang` additionally requires the frame to be unchanged across samples.
+
+Regression tests use real captured frames (`tests/fixtures/`: logon screen, boot
+frame, desktop) so this cannot silently regress.
 
 ### Stop codes
 

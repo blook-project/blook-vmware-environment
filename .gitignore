@@ -17,6 +17,7 @@ compile_commands.json
 !docs/evidence/**/*.log
 *.png
 !docs/evidence/**/*.png
+!tests/fixtures/**/*.png
 *.vmx
 !tests/fixtures/**/*.vmx
 

@@ -85,6 +85,9 @@ target("bvmenv-tests")
     add_packages("gtest")
     add_files("tests/unit/*.cc")
     host_common()
+    -- forward slashes: the value ends up inside a C string literal, so
+    -- backslashes from os.projectdir() would be parsed as escape sequences.
+    add_defines('BVMENV_TEST_SOURCE_DIR="' .. os.projectdir():gsub("\\", "/") .. '"')
     add_tests("unit")
 
 -- In-guest user mode helper: proves VT-x/VMX is exposed inside the VM, which a
@@ -107,6 +110,17 @@ if has_config("guest_drivers") then
         set_values("wdk.env.winver", "win10_vb")
         set_exceptions("no-cxx")
         add_files("tests/guest/bsod-driver/*.cc")
+        add_defines("UNICODE", "_UNICODE", "NOMINMAX", "POOL_NX_OPTIN=1")
+        add_cxxflags("/kernel", "/GR-", "/EHs-c-", "/Zc:threadSafeInit-", "/GS-", "/utf-8", {force = true})
+        add_ldflags("/INTEGRITYCHECK", "/ENTRY:DriverEntry", {force = true})
+        set_encodings("utf-8")
+
+    target("guest-vtx-probe")
+        add_rules("wdk.driver", "wdk.env.wdm")
+        set_languages("cxx17")
+        set_values("wdk.env.winver", "win10_vb")
+        set_exceptions("no-cxx")
+        add_files("tests/guest/vtx-probe/*.cc")
         add_defines("UNICODE", "_UNICODE", "NOMINMAX", "POOL_NX_OPTIN=1")
         add_cxxflags("/kernel", "/GR-", "/EHs-c-", "/Zc:threadSafeInit-", "/GS-", "/utf-8", {force = true})
         add_ldflags("/INTEGRITYCHECK", "/ENTRY:DriverEntry", {force = true})

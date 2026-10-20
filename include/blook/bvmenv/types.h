@@ -28,13 +28,13 @@ std::optional<ToolsState> parse_tools_state(std::string_view s);
 // screen classification (host side, never depends on guest userland)
 // ---------------------------------------------------------------------------
 enum class ScreenClass {
-    Unknown,   // no frame could be captured / no classification possible
-    Black,     // frame is (almost) uniformly black
-    Boot,      // firmware / boot loader / pre-login boot progress
-    Login,     // lock screen / logon UI
-    Desktop,   // interactive session with a shell
-    Bsod,      // bugcheck screen (stop code extracted when OCR is available)
-    Hang,      // screen unchanged while the guest is unresponsive
+    Unknown,  // no frame could be captured / no classification possible
+    Black,    // frame is (almost) uniformly black
+    Boot,     // firmware / boot loader / pre-login boot progress
+    Login,    // lock screen / logon UI
+    Desktop,  // interactive session with a shell
+    Bsod,     // bugcheck screen (stop code extracted when OCR is available)
+    Hang,     // screen unchanged while the guest is unresponsive
 };
 
 std::string_view to_string(ScreenClass s);
@@ -44,15 +44,15 @@ struct ScreenStats {
     int width = 0;
     int height = 0;
     // Ratios are fractions of the sampled pixels, 0..1.
-    double black_ratio = 0.0;     // near black (all channels < 24)
-    double white_ratio = 0.0;     // near white (all channels > 220)
-    double blue_ratio = 0.0;      // strongly blue (classic bugcheck / setup)
-    double gray_ratio = 0.0;      // low saturation mid tones
-    double colored_ratio = 0.0;   // saturated, non blue
+    double black_ratio = 0.0;    // near black (all channels < 24)
+    double white_ratio = 0.0;    // near white (all channels > 220)
+    double blue_ratio = 0.0;     // strongly blue (classic bugcheck / setup)
+    double gray_ratio = 0.0;     // low saturation mid tones
+    double colored_ratio = 0.0;  // saturated, non blue
     double mean_r = 0.0;
     double mean_g = 0.0;
     double mean_b = 0.0;
-    double dark_ratio = 0.0;      // all channels < 64
+    double dark_ratio = 0.0;        // all channels < 64
     std::uint64_t fingerprint = 0;  // perceptual-ish hash for hang detection
     int sampled_pixels = 0;
 };
@@ -73,12 +73,12 @@ struct ScreenReport {
 // ---------------------------------------------------------------------------
 struct VmInfo {
     std::string name;
-    std::string vmx;   // absolute path
-    std::string dir;   // absolute path of the VM directory
+    std::string vmx;  // absolute path
+    std::string dir;  // absolute path of the VM directory
     bool is_base = false;
     PowerState power = PowerState::Off;
-    std::string base;       // parent VM name for forks ("" for the base)
-    std::string snapshot;   // base snapshot name used for the clone
+    std::string base;      // parent VM name for forks ("" for the base)
+    std::string snapshot;  // base snapshot name used for the clone
     int cpus = 0;
     int memory_mb = 0;
     std::string created_at;  // ISO-8601 UTC
@@ -95,12 +95,12 @@ struct ToolInfo {
 // ---------------------------------------------------------------------------
 struct ExecRequest {
     std::string vm;
-    std::string command_line;   // executed through cmd.exe /c
+    std::string command_line;  // executed through cmd.exe /c
     std::optional<std::string> workdir;
     std::chrono::seconds timeout{120};
     bool elevated = false;
     bool ignore_exit_code = false;
-    std::string run_id;         // optional explicit run id
+    std::string run_id;  // optional explicit run id
 };
 
 struct ExecResult {
@@ -111,7 +111,7 @@ struct ExecResult {
     std::string guest_dir;
     std::string stdout_path;
     std::string stderr_path;
-    std::string out;   // captured stdout (truncated to a sane tail for JSON)
+    std::string out;  // captured stdout (truncated to a sane tail for JSON)
     std::string err;
     std::chrono::milliseconds duration{0};
     std::string error;
@@ -123,7 +123,7 @@ struct ResetReport {
     bool performed = false;
     bool ok = false;
     std::string reason;
-    std::string strategy;   // "snapshot" | "delete-reclone" | "none"
+    std::string strategy;  // "snapshot" | "delete-reclone" | "none"
     std::chrono::milliseconds duration{0};
 
     [[nodiscard]] json::Value to_json() const;
@@ -150,7 +150,7 @@ struct StateReport {
     int unchanged_samples = 0;
     ScreenReport screen;
     std::vector<LogIssue> log_issues;
-    std::string sampled_at;  // ISO-8601 UTC
+    std::string sampled_at;        // ISO-8601 UTC
     bool guest_queryable = false;  // guest ops answered during sampling
 
     [[nodiscard]] json::Value to_json() const;
@@ -166,11 +166,11 @@ std::optional<E2eOutcome> parse_e2e_outcome(std::string_view s);
 
 struct E2eRequest {
     std::string vm;
-    std::string bundle;      // local directory with the test payload
-    std::string entry;       // guest path or name of the payload entry point
+    std::string bundle;  // local directory with the test payload
+    std::string entry;   // guest path or name of the payload entry point
     std::vector<std::string> args;
     std::chrono::seconds timeout{120};
-    std::string out_dir;     // host artifact root
+    std::string out_dir;               // host artifact root
     std::string reset_on = "failure";  // failure | always | never
     int wait_ready_timeout_s = 180;
 };

@@ -56,7 +56,8 @@ void print_state(const StateReport& report, bool json) {
     if (!report.screen.stop_code.empty()) {
         std::printf("stop code    : %s\n", report.screen.stop_code.c_str());
     }
-    if (!report.ip.empty()) std::printf("guest ip     : %s\n", report.ip.c_str());
+    if (!report.ip.empty())
+        std::printf("guest ip     : %s\n", report.ip.c_str());
     if (report.uptime_seconds) {
         std::printf("uptime       : %llds\n", *report.uptime_seconds);
     }
@@ -78,10 +79,12 @@ void print_exec(const ExecResult& result, bool json) {
         return;
     }
     std::printf("exit_code    : %d%s\n", result.exit_code, result.timed_out ? " (timed out)" : "");
-    if (!result.error.empty()) std::printf("error        : %s\n", result.error.c_str());
+    if (!result.error.empty())
+        std::printf("error        : %s\n", result.error.c_str());
     if (!result.out.empty()) {
         std::fwrite(result.out.data(), 1, result.out.size(), stdout);
-        if (result.out.back() != '\n') std::fputc('\n', stdout);
+        if (result.out.back() != '\n')
+            std::fputc('\n', stdout);
     }
     if (!result.err.empty()) {
         std::fputs("--- stderr ---\n", stdout);
@@ -108,15 +111,16 @@ int cmd_version(Context& ctx) {
 
 int cmd_base(Context& ctx, const std::vector<std::string>& argv, bool verify_only) {
     if (verify_only) {
-        const ParsedArgs args = parse_args(argv, {"json", "verbose"});
-        BaseVerifyReport report = ctx.lab.base_verify();
+        const ParsedArgs args = parse_args(argv, {"json", "verbose", "deep"});
+        BaseVerifyReport report = ctx.lab.base_verify("base", args.has("deep"));
         if (ctx.json) {
             std::printf("%s\n", report.to_json().dump(2).c_str());
         } else {
             for (const auto& [name, ok] : report.checks) {
                 std::printf("[%s] %s\n", ok ? "ok" : "FAIL", name.c_str());
             }
-            for (const auto& note : report.notes) std::printf("note: %s\n", note.c_str());
+            for (const auto& note : report.notes)
+                std::printf("note: %s\n", note.c_str());
             std::printf("base verify: %s\n", report.ok ? "ok" : "FAILED");
         }
         return report.ok ? 0 : 1;
@@ -124,9 +128,11 @@ int cmd_base(Context& ctx, const std::vector<std::string>& argv, bool verify_onl
 
     const ParsedArgs args = parse_args(argv, {"json", "verbose", "force"});
     BaseBuildOptions options;
-    if (args.has("iso")) options.iso = fs::path(to_wide(args.get("iso")));
+    if (args.has("iso"))
+        options.iso = fs::path(to_wide(args.get("iso")));
     options.force = args.has("force");
-    if (args.has("disk-gb")) options.disk_gb = static_cast<int>(parse_ll(args.get("disk-gb"), 80));
+    if (args.has("disk-gb"))
+        options.disk_gb = static_cast<int>(parse_ll(args.get("disk-gb"), 80));
     if (args.has("timeout")) {
         options.ready_timeout_s = static_cast<int>(parse_ll(args.get("timeout"), 2400));
     }
@@ -146,14 +152,17 @@ int cmd_base(Context& ctx, const std::vector<std::string>& argv, bool verify_onl
 }
 
 int cmd_create(Context& ctx, const ParsedArgs& args) {
-    if (const int rc = require_name(args, "create"); rc) return rc;
+    if (const int rc = require_name(args, "create"); rc)
+        return rc;
     CreateOptions options;
     options.name = args.positional[0];
-    if (args.has("cpus")) options.cpus = static_cast<int>(parse_ll(args.get("cpus"), 0));
+    if (args.has("cpus"))
+        options.cpus = static_cast<int>(parse_ll(args.get("cpus"), 0));
     if (args.has("memory")) {
         options.memory_mb = static_cast<int>(parse_ll(args.get("memory"), 0));
     }
-    if (args.has("from")) options.from = args.get("from");
+    if (args.has("from"))
+        options.from = args.get("from");
     options.start = !args.has("no-start");
     options.wait_ready = !args.has("no-wait");
     if (args.has("timeout")) {
@@ -182,23 +191,28 @@ int cmd_create(Context& ctx, const ParsedArgs& args) {
 }
 
 int cmd_delete(Context& ctx, const ParsedArgs& args) {
-    if (const int rc = require_name(args, "delete"); rc) return rc;
+    if (const int rc = require_name(args, "delete"); rc)
+        return rc;
     ctx.lab.destroy(args.positional[0]);
     json::Value out(json::Object{});
     out["schema"] = std::string("bvmenv.delete.v1");
     out["ok"] = true;
     out["name"] = args.positional[0];
-    if (ctx.json) std::printf("%s\n", out.dump(2).c_str());
-    else std::printf("deleted %s\n", args.positional[0].c_str());
+    if (ctx.json)
+        std::printf("%s\n", out.dump(2).c_str());
+    else
+        std::printf("deleted %s\n", args.positional[0].c_str());
     return 0;
 }
 
 int cmd_start_stop(Context& ctx, const ParsedArgs& args, bool start) {
-    if (const int rc = require_name(args, start ? "start" : "stop"); rc) return rc;
+    if (const int rc = require_name(args, start ? "start" : "stop"); rc)
+        return rc;
     const std::string name = args.positional[0];
     if (start) {
         ctx.vmware.start(name, args.has("gui"));
-        if (!args.has("no-wait")) ctx.lab.wait_ready(name, std::chrono::seconds(240));
+        if (!args.has("no-wait"))
+            ctx.lab.wait_ready(name, std::chrono::seconds(240));
     } else {
         ctx.vmware.stop(name, !args.has("soft"));
     }
@@ -208,13 +222,16 @@ int cmd_start_stop(Context& ctx, const ParsedArgs& args, bool start) {
     out["name"] = name;
     out["action"] = start ? "start" : "stop";
     out["power"] = std::string(to_string(ctx.vmware.power_state(name)));
-    if (ctx.json) std::printf("%s\n", out.dump(2).c_str());
-    else std::printf("%s: %s\n", start ? "started" : "stopped", name.c_str());
+    if (ctx.json)
+        std::printf("%s\n", out.dump(2).c_str());
+    else
+        std::printf("%s: %s\n", start ? "started" : "stopped", name.c_str());
     return 0;
 }
 
 int cmd_reset(Context& ctx, const ParsedArgs& args) {
-    if (const int rc = require_name(args, "reset"); rc) return rc;
+    if (const int rc = require_name(args, "reset"); rc)
+        return rc;
     const std::string name = args.positional[0];
     const ResetReport report = ctx.lab.reset(name, "manual");
     if (ctx.json) {
@@ -223,7 +240,8 @@ int cmd_reset(Context& ctx, const ParsedArgs& args) {
         std::printf("reset %s: %s (%s, %lldms)\n", name.c_str(), report.ok ? "ok" : "FAILED",
                     report.strategy.c_str(), static_cast<long long>(report.duration.count()));
     }
-    if (!report.ok) return 1;
+    if (!report.ok)
+        return 1;
     if (args.has("start") || args.has("wait")) {
         ctx.vmware.start(name, false);
         ctx.lab.wait_ready(name, std::chrono::seconds(240));
@@ -261,13 +279,16 @@ int cmd_list(Context& ctx, const ParsedArgs& args) {
 }
 
 int cmd_state(Context& ctx, const ParsedArgs& args) {
-    if (const int rc = require_name(args, "state"); rc) return rc;
+    if (const int rc = require_name(args, "state"); rc)
+        return rc;
     StateOptions options;
     options.capture = true;
-    if (args.has("no-capture")) options.capture = false;
+    if (args.has("no-capture"))
+        options.capture = false;
     options.use_ocr = !args.has("no-ocr");
     options.samples = static_cast<int>(parse_ll(args.get("samples"), 1));
-    if (options.samples > 1) options.samples = std::max(options.samples, ctx.config.hang_samples);
+    if (options.samples > 1)
+        options.samples = std::max(options.samples, ctx.config.hang_samples);
     const StateReport report = ctx.lab.state(args.positional[0], options);
     print_state(report, ctx.json);
     if (args.has("screenshot")) {
@@ -279,7 +300,8 @@ int cmd_state(Context& ctx, const ParsedArgs& args) {
                           fs::copy_options::overwrite_existing, ec);
         }
     }
-    if (report.hang_suspected) return 4;
+    if (report.hang_suspected)
+        return 4;
     return 0;
 }
 
@@ -306,13 +328,16 @@ int cmd_screenshot(Context& ctx, const ParsedArgs& args) {
             result["confidence"] = report.confidence;
         }
     }
-    if (ctx.json) std::printf("%s\n", result.dump(2).c_str());
-    else std::printf("%s\n", to_utf8(out.wstring()).c_str());
+    if (ctx.json)
+        std::printf("%s\n", result.dump(2).c_str());
+    else
+        std::printf("%s\n", to_utf8(out.wstring()).c_str());
     return 0;
 }
 
 int cmd_exec(Context& ctx, const ParsedArgs& args) {
-    if (const int rc = require_name(args, "exec"); rc) return rc;
+    if (const int rc = require_name(args, "exec"); rc)
+        return rc;
     ExecRequest request;
     request.vm = args.positional[0];
     if (!args.trailing.empty()) {
@@ -325,12 +350,15 @@ int cmd_exec(Context& ctx, const ParsedArgs& args) {
         std::cerr << "bvmenv: exec requires a command (bvmenv exec <vm> -- <command>)\n";
         return 2;
     }
-    request.timeout = std::chrono::seconds(parse_ll(args.get("timeout"), ctx.config.default_timeout_s));
+    request.timeout =
+        std::chrono::seconds(parse_ll(args.get("timeout"), ctx.config.default_timeout_s));
     request.elevated = args.has("elevated");
-    if (args.has("workdir")) request.workdir = args.get("workdir");
+    if (args.has("workdir"))
+        request.workdir = args.get("workdir");
     const ExecResult result = ctx.lab.exec(request);
     print_exec(result, ctx.json);
-    if (!result.ran || result.timed_out) return 1;
+    if (!result.ran || result.timed_out)
+        return 1;
     return result.exit_code == 0 ? 0 : 1;
 }
 
@@ -361,22 +389,28 @@ int cmd_push_pull(Context& ctx, const ParsedArgs& args, bool push) {
         out["files"] = 1;
     }
     out["ok"] = true;
-    if (ctx.json) std::printf("%s\n", out.dump(2).c_str());
-    else std::printf("copied %lld file(s)`n", static_cast<long long>(out["files"].as_int(0)));
+    if (ctx.json)
+        std::printf("%s\n", out.dump(2).c_str());
+    else
+        std::printf("copied %lld file(s)`n", static_cast<long long>(out["files"].as_int(0)));
     return 0;
 }
 
 int cmd_e2e(Context& ctx, const ParsedArgs& args) {
-    if (const int rc = require_name(args, "e2e"); rc) return rc;
+    if (const int rc = require_name(args, "e2e"); rc)
+        return rc;
     E2eRequest request;
     request.vm = args.positional[0];
     request.bundle = args.get("bundle");
     request.entry = args.get("entry");
-    if (request.entry.empty() && args.positional.size() > 1) request.entry = args.positional[1];
+    if (request.entry.empty() && args.positional.size() > 1)
+        request.entry = args.positional[1];
     for (const auto& [key, value] : args.multi) {
-        if (key == "args") request.args.push_back(value);
+        if (key == "args")
+            request.args.push_back(value);
     }
-    for (const auto& value : args.trailing) request.args.push_back(value);
+    for (const auto& value : args.trailing)
+        request.args.push_back(value);
     if (request.bundle.empty() || request.entry.empty()) {
         std::cerr << "bvmenv: e2e requires --bundle <dir> and --entry <exe|cmd>\n";
         return 2;
@@ -401,14 +435,14 @@ int cmd_e2e(Context& ctx, const ParsedArgs& args) {
     std::printf("%s\n", out.dump(2).c_str());
     if (!ctx.json) {
         std::fprintf(stderr, "e2e: outcome=%s artifacts=%s\n",
-                     std::string(to_string(result.outcome)).c_str(),
-                     result.artifact_dir.c_str());
+                     std::string(to_string(result.outcome)).c_str(), result.artifact_dir.c_str());
     }
     return result.outcome == E2eOutcome::Pass ? 0 : 1;
 }
 
 int cmd_wait_ready(Context& ctx, const ParsedArgs& args) {
-    if (const int rc = require_name(args, "wait-ready"); rc) return rc;
+    if (const int rc = require_name(args, "wait-ready"); rc)
+        return rc;
     const std::string name = args.positional[0];
     const auto timeout = std::chrono::seconds(parse_ll(args.get("timeout"), 240));
     const bool ok = ctx.lab.wait_ready(name, timeout);
@@ -417,8 +451,10 @@ int cmd_wait_ready(Context& ctx, const ParsedArgs& args) {
     out["ok"] = ok;
     out["name"] = name;
     out["timeout_s"] = static_cast<long long>(timeout.count());
-    if (ctx.json) std::printf("%s\n", out.dump(2).c_str());
-    else std::printf("%s: %s\n", name.c_str(), ok ? "ready" : "NOT ready");
+    if (ctx.json)
+        std::printf("%s\n", out.dump(2).c_str());
+    else
+        std::printf("%s: %s\n", name.c_str(), ok ? "ready" : "NOT ready");
     return ok ? 0 : 1;
 }
 
@@ -441,13 +477,16 @@ int cmd_key(Context& ctx, const ParsedArgs& args) {
     json::Value out(json::Object{});
     out["schema"] = std::string("bvmenv.key.v1");
     out["ok"] = ok;
-    if (ctx.json) std::printf("%s\n", out.dump(2).c_str());
-    else std::printf("key injection: %s\n", ok ? "ok" : "FAILED");
+    if (ctx.json)
+        std::printf("%s\n", out.dump(2).c_str());
+    else
+        std::printf("key injection: %s\n", ok ? "ok" : "FAILED");
     return ok ? 0 : 1;
 }
 
 int cmd_crash(Context& ctx, const ParsedArgs& args) {
-    if (const int rc = require_name(args, "crash"); rc) return rc;
+    if (const int rc = require_name(args, "crash"); rc)
+        return rc;
     const std::string name = args.positional[0];
     const bool ok = ctx.lab.force_bugcheck(name);
     json::Value out(json::Object{});
@@ -455,8 +494,10 @@ int cmd_crash(Context& ctx, const ParsedArgs& args) {
     out["ok"] = ok;
     out["name"] = name;
     out["method"] = std::string("ctrl+scrolllock x2 (i8042prt CrashOnCtrlScroll)");
-    if (ctx.json) std::printf("%s\n", out.dump(2).c_str());
-    else std::printf("bugcheck requested for %s\n", name.c_str());
+    if (ctx.json)
+        std::printf("%s\n", out.dump(2).c_str());
+    else
+        std::printf("bugcheck requested for %s\n", name.c_str());
     return ok ? 0 : 1;
 }
 
@@ -501,8 +542,7 @@ int cmd_selftest(Context& ctx, const ParsedArgs& args) {
 
     // Host side state primitives only need a running VM; use the base image if
     // it exists and is running, otherwise just report availability.
-    if (file_exists(ctx.config.base_vmx()) &&
-        ctx.vmware.power_state("base") == PowerState::On) {
+    if (file_exists(ctx.config.base_vmx()) && ctx.vmware.power_state("base") == PowerState::On) {
         const fs::path png = ctx.config.cache_dir() / "selftest.png";
         const bool captured = ctx.vmware.capture_screenshot("base", png);
         ok &= add("vmcli MKS captureScreenshot", captured, to_utf8(png.wstring()));
@@ -545,8 +585,10 @@ void print_help() {
         "Usage: bvmenv [--json] [--verbose] <command> [options]\n"
         "\n"
         "Base image\n"
-        "  base build [--iso <path>] [--disk-gb 80] [--force]   unattended base image + snapshot 'base'\n"
-        "  base verify [--json]                                 machine-check the base image contract\n"
+        "  base build [--iso <path>] [--disk-gb 80] [--force]   unattended base image + snapshot "
+        "'base'\n"
+        "  base verify [--json]                                 machine-check the base image "
+        "contract\n"
         "\n"
         "Lifecycle\n"
         "  create <name> [--cpus 4] [--memory 6144] [--from base] [--no-start]\n"

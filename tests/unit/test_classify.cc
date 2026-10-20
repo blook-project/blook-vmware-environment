@@ -38,6 +38,37 @@ TEST(Classify, BugcheckBlueScreen) {
     EXPECT_GT(r.confidence, 0.5);
 }
 
+TEST(Classify, BlueFrameWithLiveGuestIsLogonUiNotBugcheck) {
+    // Regression: the Windows logon screen is dark blue with light text. Without
+    // host context this used to be reported as a false BSOD (which would make
+    // every downstream e2e reset its VM and report bogus failures).
+    ScreenContext context;
+    context.tools_running = true;
+    context.guest_queryable = true;
+    const ScreenStats s = stats(0.05, 0.03, 0.85, 0.05, 0.02, 0.1, 200.0);
+    const ScreenReport r = classify_screen(s, "", context);
+    EXPECT_EQ(r.classification, ScreenClass::Login);
+    EXPECT_TRUE(r.stop_code.empty());
+}
+
+TEST(Classify, BlueFrameWithDeadGuestAndFrozenScreenIsBugcheck) {
+    ScreenContext context;
+    context.tools_running = false;
+    context.guest_queryable = false;
+    context.unchanged_samples = 2;
+    const ScreenStats s = stats(0.05, 0.03, 0.85, 0.05, 0.02, 0.1, 200.0);
+    const ScreenReport r = classify_screen(s, "", context);
+    EXPECT_EQ(r.classification, ScreenClass::Bsod);
+    EXPECT_GT(r.confidence, 0.8);
+}
+
+TEST(Classify, LiveGuestWithUnclearFrameIsDesktop) {
+    ScreenContext context;
+    context.guest_queryable = true;
+    const ScreenReport r = classify_screen(stats(0.5, 0.05, 0.0, 0.05, 0.05), "", context);
+    EXPECT_EQ(r.classification, ScreenClass::Desktop);
+}
+
 TEST(Classify, BugcheckFromOcrWinsOverColour) {
     const ScreenStats s = stats(0.2, 0.2, 0.2, 0.2, 0.2);
     const ScreenReport r = classify_screen(s, "Your device ran into a problem\nSTOP CODE: 0xD1");
@@ -57,8 +88,7 @@ TEST(Classify, BootScreenOnBlack) {
 }
 
 TEST(Classify, LoginScreenFromOcr) {
-    const ScreenReport r =
-        classify_screen(stats(0.2, 0.1, 0.1, 0.5, 0.1), "欢迎\n其他用户\n登录");
+    const ScreenReport r = classify_screen(stats(0.2, 0.1, 0.1, 0.5, 0.1), "欢迎\n其他用户\n登录");
     EXPECT_EQ(r.classification, ScreenClass::Login);
 }
 

@@ -27,9 +27,9 @@ TEST(Types, ToolsStateRoundTrip) {
 }
 
 TEST(Types, ScreenClassRoundTrip) {
-    for (const ScreenClass cls : {ScreenClass::Black, ScreenClass::Boot, ScreenClass::Login,
-                                  ScreenClass::Desktop, ScreenClass::Bsod, ScreenClass::Hang,
-                                  ScreenClass::Unknown}) {
+    for (const ScreenClass cls :
+         {ScreenClass::Black, ScreenClass::Boot, ScreenClass::Login, ScreenClass::Desktop,
+          ScreenClass::Bsod, ScreenClass::Hang, ScreenClass::Unknown}) {
         const auto parsed = parse_screen_class(to_string(cls));
         ASSERT_TRUE(parsed.has_value());
         EXPECT_EQ(*parsed, cls);

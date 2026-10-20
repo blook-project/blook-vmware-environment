@@ -12,12 +12,12 @@
 namespace blook::bvmenv {
 
 struct ProcessOptions {
-    std::wstring command_line;                 // passed verbatim to CreateProcessW
+    std::wstring command_line;  // passed verbatim to CreateProcessW
     std::optional<std::wstring> working_dir;
     std::chrono::milliseconds timeout{0};      // 0 = no timeout
     std::map<std::wstring, std::wstring> env;  // extra environment variables
     bool inherit_environment = true;
-    std::string stdin_data;                    // written to the child's stdin
+    std::string stdin_data;  // written to the child's stdin
     bool close_stdin = true;
 };
 

@@ -16,7 +16,7 @@ namespace {
 
 template <class T>
 class ComPtr {
-public:
+   public:
     ComPtr() = default;
     ~ComPtr() { reset(); }
     ComPtr(const ComPtr&) = delete;
@@ -34,7 +34,7 @@ public:
         }
     }
 
-private:
+   private:
     T* ptr_ = nullptr;
 };
 
@@ -42,7 +42,8 @@ struct CoInit {
     bool ok = false;
     CoInit() { ok = SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED)); }
     ~CoInit() {
-        if (ok) CoUninitialize();
+        if (ok)
+            CoUninitialize();
     }
 };
 
@@ -50,19 +51,20 @@ bool decode_png(const fs::path& path, UINT* width, UINT* height, std::vector<std
     CoInit com;
     ComPtr<IWICImagingFactory> factory;
     if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
-                               IID_PPV_ARGS(factory.put())))) {
+                                IID_PPV_ARGS(factory.put())))) {
         return false;
     }
     ComPtr<IWICBitmapDecoder> decoder;
     if (FAILED(factory->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ,
-                                                  WICDecodeMetadataCacheOnDemand,
-                                                  decoder.put()))) {
+                                                  WICDecodeMetadataCacheOnDemand, decoder.put()))) {
         return false;
     }
     ComPtr<IWICBitmapFrameDecode> frame;
-    if (FAILED(decoder->GetFrame(0, frame.put()))) return false;
+    if (FAILED(decoder->GetFrame(0, frame.put())))
+        return false;
     ComPtr<IWICFormatConverter> converter;
-    if (FAILED(factory->CreateFormatConverter(converter.put()))) return false;
+    if (FAILED(factory->CreateFormatConverter(converter.put())))
+        return false;
     if (FAILED(converter->Initialize(frame.get(), GUID_WICPixelFormat24bppBGR,
                                      WICBitmapDitherTypeNone, nullptr, 0.0,
                                      WICBitmapPaletteTypeCustom))) {
@@ -70,7 +72,8 @@ bool decode_png(const fs::path& path, UINT* width, UINT* height, std::vector<std
     }
     UINT w = 0, h = 0;
     converter->GetSize(&w, &h);
-    if (w == 0 || h == 0 || w > 16384 || h > 16384) return false;
+    if (w == 0 || h == 0 || w > 16384 || h > 16384)
+        return false;
     const UINT stride = w * 3;
     std::vector<std::uint8_t> pixels(static_cast<std::size_t>(stride) * h);
     if (FAILED(converter->CopyPixels(nullptr, stride, static_cast<UINT>(pixels.size()),
@@ -95,7 +98,8 @@ std::optional<ScreenStats> analyze_image(const fs::path& png, std::string* error
     UINT width = 0, height = 0;
     std::vector<std::uint8_t> pixels;
     if (!decode_png(png, &width, &height, &pixels)) {
-        if (error) *error = "failed to decode image " + to_utf8(png.wstring());
+        if (error)
+            *error = "failed to decode image " + to_utf8(png.wstring());
         return std::nullopt;
     }
     ScreenStats stats;
@@ -123,9 +127,12 @@ std::optional<ScreenStats> analyze_image(const fs::path& png, std::string* error
             const int max_c = std::max({r, g, b});
             const int min_c = std::min({r, g, b});
             const int luma = (r + g + b) / 3;
-            if (max_c < 24) ++black;
-            if (min_c > 220) ++white;
-            if (luma < 64) ++dark;
+            if (max_c < 24)
+                ++black;
+            if (min_c > 220)
+                ++white;
+            if (luma < 64)
+                ++dark;
             if (b > 90 && b > r + 30 && b > g + 20) {
                 ++blue;
             } else if (max_c - min_c < 20) {
@@ -140,7 +147,8 @@ std::optional<ScreenStats> analyze_image(const fs::path& png, std::string* error
         }
     }
     if (count == 0) {
-        if (error) *error = "empty image";
+        if (error)
+            *error = "empty image";
         return std::nullopt;
     }
     const double n = static_cast<double>(count);

@@ -39,7 +39,8 @@ TEST(Args, RepeatedMultiValueFlags) {
     EXPECT_EQ(a.multi.count("args"), 3u);
     std::vector<std::string> values;
     auto range = a.multi.equal_range("args");
-    for (auto it = range.first; it != range.second; ++it) values.push_back(it->second);
+    for (auto it = range.first; it != range.second; ++it)
+        values.push_back(it->second);
     EXPECT_EQ(values, (std::vector<std::string>{"a", "b=c", "d"}));
 }
 

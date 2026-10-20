@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include <atomic>
+#include <chrono>
 #include <string>
 #include <thread>
 #include <vector>
@@ -12,16 +13,6 @@
 
 namespace blook::bvmenv {
 namespace {
-
-std::string read_all(HANDLE pipe) {
-    std::string out;
-    char buffer[8192];
-    DWORD read = 0;
-    while (ReadFile(pipe, buffer, sizeof(buffer), &read, nullptr) && read > 0) {
-        out.append(buffer, read);
-    }
-    return out;
-}
 
 struct JobGuard {
     HANDLE job = nullptr;
@@ -39,10 +30,39 @@ HANDLE create_job() {
     return job;
 }
 
-HMODULE module_handle() {
-    static HMODULE module = GetModuleHandleW(nullptr);
-    return module;
+// Drains a pipe without ever blocking forever.
+//
+// ReadFile() on a pipe returns EOF only when *every* write handle is closed. A
+// child that spawns a grandchild which inherits the handle (vmrun starting a
+// helper, for example) therefore keeps a naive reader blocked even after the
+// child itself exited - which used to hang bvmenv for tens of minutes. Reading
+// through PeekNamedPipe with a stop flag bounds the drain: once the process is
+// gone and the pipe is momentarily empty, the reader returns.
+std::string drain_pipe(HANDLE pipe, const std::atomic<bool>& stop) {
+    std::string out;
+    char buffer[8192];
+    for (;;) {
+        DWORD available = 0;
+        if (!PeekNamedPipe(pipe, nullptr, 0, nullptr, &available, nullptr)) break;
+        if (available == 0) {
+            if (stop.load(std::memory_order_relaxed)) break;
+            Sleep(5);
+            continue;
+        }
+        DWORD read = 0;
+        const DWORD want = available < sizeof(buffer) ? available : static_cast<DWORD>(sizeof(buffer));
+        if (!ReadFile(pipe, buffer, want, &read, nullptr) || read == 0) break;
+        out.append(buffer, read);
+    }
+    // Final sweep for anything written between the last peek and the stop flag.
+    for (;;) {
+        DWORD read = 0;
+        if (!ReadFile(pipe, buffer, sizeof(buffer), &read, nullptr) || read == 0) break;
+        out.append(buffer, read);
+    }
+    return out;
 }
+
 }  // namespace
 
 std::wstring build_command_line(const std::vector<std::wstring>& argv) {
@@ -104,15 +124,12 @@ ProcessResult run_process(const ProcessOptions& options) {
     si.hStdInput = in_read;
     PROCESS_INFORMATION pi{};
 
-    // Extra environment block when requested.
     std::wstring environment;
     LPVOID env_ptr = nullptr;
     if (!options.env.empty() || !options.inherit_environment) {
         if (options.inherit_environment) {
             environment = GetEnvironmentStringsW();
-            if (!environment.empty() && environment.back() == L'\0') {
-                environment.pop_back();  // drop the block terminator, re-added below
-            }
+            if (!environment.empty() && environment.back() == L'\0') environment.pop_back();
         }
         for (const auto& [key, value] : options.env) {
             environment += key + L"=" + value;
@@ -126,6 +143,8 @@ ProcessResult run_process(const ProcessOptions& options) {
     cmd_line.push_back(L'\0');
 
     const wchar_t* workdir = options.working_dir ? options.working_dir->c_str() : nullptr;
+    // CREATE_SUSPENDED so the child is inside the kill-on-close job before it
+    // can spawn grandchildren that would survive a timeout.
     const DWORD flags = CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED;
     if (!CreateProcessW(nullptr, cmd_line.data(), nullptr, nullptr, TRUE, flags, env_ptr, workdir,
                         &si, &pi)) {
@@ -142,16 +161,13 @@ ProcessResult run_process(const ProcessOptions& options) {
     result.started = true;
     JobGuard job;
     job.job = create_job();
-    if (job.job) {
-        AssignProcessToJobObject(job.job, pi.hProcess);
-    }
+    if (job.job) AssignProcessToJobObject(job.job, pi.hProcess);
     ResumeThread(pi.hThread);
     CloseHandle(pi.hThread);
     CloseHandle(out_write);
     CloseHandle(err_write);
     CloseHandle(in_read);
 
-    // Feed stdin (small inputs only; this CLI never streams large data).
     if (!options.stdin_data.empty()) {
         DWORD written = 0;
         WriteFile(in_write, options.stdin_data.data(),
@@ -159,17 +175,18 @@ ProcessResult run_process(const ProcessOptions& options) {
     }
     if (options.close_stdin) CloseHandle(in_write);
 
+    std::atomic<bool> stop{false};
     std::string stdout_bytes;
     std::string stderr_bytes;
-    std::thread out_reader([&] { stdout_bytes = read_all(out_read); });
-    std::thread err_reader([&] { stderr_bytes = read_all(err_read); });
+    std::thread out_reader([&] { stdout_bytes = drain_pipe(out_read, stop); });
+    std::thread err_reader([&] { stderr_bytes = drain_pipe(err_read, stop); });
 
     DWORD wait_ms = INFINITE;
     if (options.timeout.count() > 0) {
-        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(options.timeout);
-        wait_ms = static_cast<DWORD>(ms.count());
+        wait_ms = static_cast<DWORD>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(options.timeout).count());
     }
-    DWORD wait_result = WaitForSingleObject(pi.hProcess, wait_ms);
+    const DWORD wait_result = WaitForSingleObject(pi.hProcess, wait_ms);
     if (wait_result == WAIT_TIMEOUT) {
         result.timed_out = true;
         if (job.job) {
@@ -179,10 +196,27 @@ ProcessResult run_process(const ProcessOptions& options) {
         }
         WaitForSingleObject(pi.hProcess, 5000);
     }
-    CloseHandle(out_read);
-    CloseHandle(err_read);
+
+    // Give the readers a short window to collect the final bytes, then stop
+    // them regardless: a grandchild holding the pipe must never hang us.
+    if (!result.timed_out) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
+        while (std::chrono::steady_clock::now() < deadline) {
+            DWORD available = 0;
+            if (!PeekNamedPipe(out_read, nullptr, 0, nullptr, &available, nullptr) ||
+                available == 0) {
+                DWORD err_available = 0;
+                PeekNamedPipe(err_read, nullptr, 0, nullptr, &err_available, nullptr);
+                if (err_available == 0) break;
+            }
+            Sleep(5);
+        }
+    }
+    stop.store(true, std::memory_order_relaxed);
     out_reader.join();
     err_reader.join();
+    CloseHandle(out_read);
+    CloseHandle(err_read);
 
     DWORD exit_code = 0;
     GetExitCodeProcess(pi.hProcess, &exit_code);
@@ -208,8 +242,8 @@ bool is_process_elevated() {
 
 std::wstring find_executable(std::wstring_view name) {
     wchar_t buffer[MAX_PATH * 4];
-    if (SearchPathW(nullptr, std::wstring(name).c_str(), L".exe", static_cast<DWORD>(std::size(buffer)),
-                    buffer, nullptr) > 0) {
+    if (SearchPathW(nullptr, std::wstring(name).c_str(), L".exe",
+                    static_cast<DWORD>(std::size(buffer)), buffer, nullptr) > 0) {
         return buffer;
     }
     return {};

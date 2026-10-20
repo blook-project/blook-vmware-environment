@@ -19,9 +19,13 @@
 namespace blook::bvmenv {
 namespace {
 
-std::wstring widen(const std::string& s) { return to_wide(s); }
+std::wstring widen(const std::string& s) {
+    return to_wide(s);
+}
 
-std::wstring widen(const fs::path& p) { return p.wstring(); }
+std::wstring widen(const fs::path& p) {
+    return p.wstring();
+}
 
 // vmrun reports "Total running VMs: N" plus the vmx paths.
 std::vector<std::string> split_lines(const std::string& text) {
@@ -29,10 +33,13 @@ std::vector<std::string> split_lines(const std::string& text) {
     std::size_t pos = 0;
     while (pos < text.size()) {
         std::size_t eol = text.find('\n', pos);
-        if (eol == std::string::npos) eol = text.size();
+        if (eol == std::string::npos)
+            eol = text.size();
         std::string line = text.substr(pos, eol - pos);
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        if (!line.empty()) lines.push_back(line);
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+        if (!line.empty())
+            lines.push_back(line);
         pos = eol + 1;
     }
     return lines;
@@ -41,8 +48,10 @@ std::vector<std::string> split_lines(const std::string& text) {
 std::string value_after_colon(const std::string& text, const std::string& key) {
     for (const auto& line : split_lines(text)) {
         const std::size_t colon = line.find(':');
-        if (colon == std::string::npos) continue;
-        if (trim(line.substr(0, colon)) == key) return trim(line.substr(colon + 1));
+        if (colon == std::string::npos)
+            continue;
+        if (trim(line.substr(0, colon)) == key)
+            return trim(line.substr(colon + 1));
     }
     return {};
 }
@@ -58,15 +67,21 @@ ProcessResult Vmware::vmrun(const std::vector<std::wstring>& args,
     argv.push_back(cfg_.vmrun().wstring());
     argv.push_back(L"-T");
     argv.push_back(L"ws");
-    for (const auto& a : args) argv.push_back(a);
+    for (const auto& a : args)
+        argv.push_back(a);
 
     ProcessOptions options;
     options.command_line = build_command_line(argv);
-    options.timeout = timeout;
+    options.timeout = timeout.count() > 0 ? timeout
+                                          : std::chrono::milliseconds(cfg_.command_timeout_ms);
+    const auto started = std::chrono::steady_clock::now();
     ProcessResult result = run_process(options);
-    if (silent) {
-        // nothing
-    }
+    log_command(options.command_line,
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - started)
+                    .count(),
+                static_cast<int>(result.exit_code), result.timed_out);
+    (void)silent;
     return result;
 }
 
@@ -74,16 +89,26 @@ ProcessResult Vmware::vmcli(const std::vector<std::wstring>& args,
                             std::chrono::milliseconds timeout) const {
     std::vector<std::wstring> argv;
     argv.push_back(cfg_.vmcli().wstring());
-    for (const auto& a : args) argv.push_back(a);
+    for (const auto& a : args)
+        argv.push_back(a);
     ProcessOptions options;
     options.command_line = build_command_line(argv);
-    options.timeout = timeout;
-    return run_process(options);
+    options.timeout = timeout.count() > 0 ? timeout
+                                          : std::chrono::milliseconds(cfg_.command_timeout_ms);
+    const auto started = std::chrono::steady_clock::now();
+    ProcessResult result = run_process(options);
+    log_command(options.command_line,
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - started)
+                    .count(),
+                static_cast<int>(result.exit_code), result.timed_out);
+    return result;
 }
 
 bool Vmware::service_running() const {
     SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
-    if (!manager) return false;
+    if (!manager)
+        return false;
     SC_HANDLE service = OpenServiceW(manager, L"VMAuthdService", SERVICE_QUERY_STATUS);
     bool running = false;
     if (service) {
@@ -103,7 +128,8 @@ std::string Vmware::vmrun_version() const {
 }
 
 std::wstring Vmware::vmx_wide(const std::string& name) const {
-    if (name == "base") return cfg_.base_vmx().wstring();
+    if (name == "base")
+        return cfg_.base_vmx().wstring();
     return cfg_.vmx_for(name).wstring();
 }
 
@@ -117,8 +143,7 @@ VmInfo Vmware::base() const {
     info.dir = to_utf8(cfg_.base_dir().wstring());
     info.is_base = true;
     if (!file_exists(cfg_.base_vmx())) {
-        throw Error("base image not found at " + info.vmx +
-                    " (run: bvmenv base build)");
+        throw Error("base image not found at " + info.vmx + " (run: bvmenv base build)");
     }
     const Vmx vmx = Vmx::load(cfg_.base_vmx());
     info.cpus = vmx.get_int("numvcpus", 0);
@@ -128,7 +153,8 @@ VmInfo Vmware::base() const {
 
 std::optional<VmInfo> Vmware::find(const std::string& name) const {
     if (name == "base") {
-        if (!file_exists(cfg_.base_vmx())) return std::nullopt;
+        if (!file_exists(cfg_.base_vmx()))
+            return std::nullopt;
         VmInfo info = base();
         info.power = power_state("base");
         return info;
@@ -139,7 +165,8 @@ std::optional<VmInfo> Vmware::find(const std::string& name) const {
     }
     const fs::path dir = cfg_.vm_dir(name);
     const fs::path vmx = cfg_.vmx_for(name);
-    if (!file_exists(vmx)) return std::nullopt;
+    if (!file_exists(vmx))
+        return std::nullopt;
     VmInfo info;
     info.name = name;
     info.vmx = to_utf8(vmx.wstring());
@@ -151,7 +178,8 @@ std::optional<VmInfo> Vmware::find(const std::string& name) const {
     const fs::path meta = dir / ".bvmenv.json";
     if (file_exists(meta)) {
         std::string error;
-        if (auto parsed = json::Value::parse(read_text(meta), &error); parsed && parsed->is_object()) {
+        if (auto parsed = json::Value::parse(read_text(meta), &error);
+            parsed && parsed->is_object()) {
             info.base = (*parsed)["base"].as_string();
             info.snapshot = (*parsed)["snapshot"].as_string();
             info.created_at = (*parsed)["created_at"].as_string();
@@ -172,13 +200,16 @@ std::vector<VmInfo> Vmware::list() const {
     std::error_code ec;
     if (fs::is_directory(root, ec)) {
         for (const auto& entry : fs::directory_iterator(root, ec)) {
-            if (!entry.is_directory()) continue;
+            if (!entry.is_directory())
+                continue;
             const std::string name = to_utf8(entry.path().filename().wstring());
-            if (auto info = find(name)) out.push_back(std::move(*info));
+            if (auto info = find(name))
+                out.push_back(std::move(*info));
         }
     }
     std::sort(out.begin(), out.end(), [](const VmInfo& a, const VmInfo& b) {
-        if (a.is_base != b.is_base) return a.is_base;
+        if (a.is_base != b.is_base)
+            return a.is_base;
         return a.name < b.name;
     });
     return out;
@@ -196,8 +227,8 @@ void Vmware::start(const std::string& name, bool gui) {
 }
 
 void Vmware::stop(const std::string& name, bool hard) {
-    const ProcessResult r = vmrun({L"stop", vmx_wide(name), hard ? L"hard" : L"soft"},
-                                  std::chrono::seconds(180));
+    const ProcessResult r =
+        vmrun({L"stop", vmx_wide(name), hard ? L"hard" : L"soft"}, std::chrono::seconds(180));
     if (r.exit_code != 0) {
         throw Error("vmrun stop failed for " + name + ": " + trim(r.out + r.err));
     }
@@ -210,11 +241,11 @@ void Vmware::reset_power(const std::string& name) {
     }
 }
 
-void Vmware::wait_power(const std::string& name, PowerState desired,
-                        std::chrono::seconds timeout) {
+void Vmware::wait_power(const std::string& name, PowerState desired, std::chrono::seconds timeout) {
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     while (std::chrono::steady_clock::now() < deadline) {
-        if (power_state(name) == desired) return;
+        if (power_state(name) == desired)
+            return;
         sleep_ms(500);
     }
     throw Error("timed out waiting for VM " + name + " to become " +
@@ -233,7 +264,8 @@ bool Vmware::has_snapshot(const std::string& name, const std::string& snapshot_n
     // listSnapshots fails on a VM without snapshots, so ignore the exit code.
     const ProcessResult r = vmrun({L"listSnapshots", vmx_wide(name)}, std::chrono::seconds(60));
     for (const auto& line : split_lines(r.out + r.err)) {
-        if (trim(line) == snapshot_name) return true;
+        if (trim(line) == snapshot_name)
+            return true;
     }
     return false;
 }
@@ -249,9 +281,9 @@ void Vmware::revert(const std::string& name, const std::string& snapshot_name) {
 void Vmware::clone_linked(const fs::path& src_vmx, const fs::path& dst_vmx,
                           const std::string& snapshot_name) {
     ensure_dir(dst_vmx.parent_path());
-    const ProcessResult r =
-        vmrun({L"clone", src_vmx.wstring(), dst_vmx.wstring(), L"linked", L"-snapshot=" + widen(snapshot_name)},
-              std::chrono::seconds(600));
+    const ProcessResult r = vmrun({L"clone", src_vmx.wstring(), dst_vmx.wstring(), L"linked",
+                                   L"-snapshot=" + widen(snapshot_name)},
+                                  std::chrono::seconds(600));
     if (r.exit_code != 0 || !file_exists(dst_vmx)) {
         throw Error("vmrun clone (linked) failed: " + trim(r.out + r.err));
     }
@@ -287,15 +319,18 @@ PowerState Vmware::power_state(const std::string& name) const {
         value_after_colon(q.out, "state") == "off") {
         return PowerState::Off;
     }
-    if (text.find("suspended") != std::string::npos) return PowerState::Suspended;
+    if (text.find("suspended") != std::string::npos)
+        return PowerState::Suspended;
 
     // Fallback: parse `vmrun list`.
     const ProcessResult r = vmrun({L"list"}, std::chrono::seconds(30));
     const std::string vmx = to_lower(to_utf8(vmx_wide(name)));
     for (const auto& line : split_lines(r.out)) {
-        if (to_lower(line) == vmx) return PowerState::On;
+        if (to_lower(line) == vmx)
+            return PowerState::On;
     }
-    if (file_exists(cfg_.vm_root / "vms" / name / (name + ".vmss"))) return PowerState::Suspended;
+    if (file_exists(cfg_.vm_root / "vms" / name / (name + ".vmss")))
+        return PowerState::Suspended;
     if (file_exists(cfg_.base_dir() / "blook-base.vmss") && name == "base") {
         return PowerState::Suspended;
     }
@@ -323,7 +358,8 @@ ToolInfo Vmware::tools_info(const std::string& name) const {
     } else {
         info.state = ToolsState::Installed;
     }
-    if (info.version == "0") info.version.clear();
+    if (info.version == "0")
+        info.version.clear();
     return info;
 }
 
@@ -331,16 +367,15 @@ bool Vmware::capture_screenshot(const std::string& name, const fs::path& png) co
     ensure_dir(png.parent_path());
     std::error_code ec;
     fs::remove(png, ec);
-    const ProcessResult r =
-        vmcli({vmx_wide(name), L"MKS", L"captureScreenshot", png.wstring()},
-              std::chrono::seconds(60));
-    if (r.exit_code != 0) return false;
+    const ProcessResult r = vmcli({vmx_wide(name), L"MKS", L"captureScreenshot", png.wstring()},
+                                  std::chrono::seconds(60));
+    if (r.exit_code != 0)
+        return false;
     return file_exists(png) && blook::bvmenv::file_size(png) > 0;
 }
 
 std::string Vmware::guest_ip(const std::string& name) const {
-    const ProcessResult r =
-        vmrun({L"getGuestIPAddress", vmx_wide(name)}, std::chrono::seconds(30));
+    const ProcessResult r = vmrun({L"getGuestIPAddress", vmx_wide(name)}, std::chrono::seconds(30));
     if (r.exit_code == 0) {
         const std::string value = trim(r.out);
         if (!value.empty() && value.find('.') != std::string::npos &&
@@ -352,16 +387,16 @@ std::string Vmware::guest_ip(const std::string& name) const {
 }
 
 bool Vmware::send_key(const std::string& name, int hid_code, int modifier) const {
-    const ProcessResult r = vmcli({vmx_wide(name), L"MKS", L"sendKeyEvent",
-                                   widen(std::to_string(hid_code)),
-                                   widen(std::to_string(modifier))},
-                                  std::chrono::seconds(30));
+    const ProcessResult r =
+        vmcli({vmx_wide(name), L"MKS", L"sendKeyEvent", widen(std::to_string(hid_code)),
+               widen(std::to_string(modifier))},
+              std::chrono::seconds(30));
     return r.exit_code == 0;
 }
 
 bool Vmware::send_key_sequence(const std::string& name, const std::string& text) const {
-    const ProcessResult r = vmcli({vmx_wide(name), L"MKS", L"sendKeySequence", widen(text)},
-                                  std::chrono::seconds(60));
+    const ProcessResult r =
+        vmcli({vmx_wide(name), L"MKS", L"sendKeySequence", widen(text)}, std::chrono::seconds(60));
     return r.exit_code == 0;
 }
 
@@ -369,16 +404,25 @@ bool Vmware::send_key_sequence(const std::string& name, const std::string& text)
 // guest operations
 // ---------------------------------------------------------------------------
 bool Vmware::guest_reachable(const std::string& name) const {
-    const ProcessResult r =
-        vmrun({L"checkToolsState", vmx_wide(name)}, std::chrono::seconds(30));
+    const ProcessResult r = vmrun({L"checkToolsState", vmx_wide(name)}, std::chrono::seconds(30));
     return contains_ci(r.out, "running");
 }
 
+bool Vmware::guest_ping(const std::string& name, std::chrono::milliseconds timeout) const {
+    const ProcessResult r = vmrun({L"-gu", widen(cfg_.guest_user), L"-gp",
+                                   widen(cfg_.guest_password), L"runProgramInGuest",
+                                   vmx_wide(name), L"C:\\Windows\\System32\\cmd.exe", L"/c",
+                                   L"exit 0"},
+                                  timeout);
+    return r.exit_code == 0 && !r.timed_out;
+}
+
 void Vmware::guest_mkdirs(const std::string& vm, const std::string& guest_dir) {
-    const ProcessResult r = vmrun({L"-gu", widen(cfg_.guest_user), L"-gp", widen(cfg_.guest_password),
-                                   L"runProgramInGuest", vmx_wide(vm), L"C:\\Windows\\System32\\cmd.exe",
-                                   L"/c", L"if not exist " + widen(guest_dir) + L" mkdir " + widen(guest_dir)},
-                                  std::chrono::seconds(60));
+    const ProcessResult r =
+        vmrun({L"-gu", widen(cfg_.guest_user), L"-gp", widen(cfg_.guest_password),
+               L"runProgramInGuest", vmx_wide(vm), L"C:\\Windows\\System32\\cmd.exe", L"/c",
+               L"if not exist " + widen(guest_dir) + L" mkdir " + widen(guest_dir)},
+              std::chrono::seconds(60));
     if (r.exit_code != 0) {
         throw Error("failed to create guest directory " + guest_dir + ": " + trim(r.out + r.err));
     }
@@ -404,19 +448,20 @@ void Vmware::copy_from_guest(const std::string& vm, const std::string& guest_pat
                L"copyFileFromGuestToHost", vmx_wide(vm), widen(guest_path), local.wstring()},
               std::chrono::seconds(300));
     if (r.exit_code != 0) {
-        throw Error("copy from guest failed (" + guest_path + " -> " +
-                    to_utf8(local.wstring()) + "): " + trim(r.out + r.err));
+        throw Error("copy from guest failed (" + guest_path + " -> " + to_utf8(local.wstring()) +
+                    "): " + trim(r.out + r.err));
     }
 }
 
 int Vmware::push_tree(const std::string& vm, const fs::path& local_dir,
                       const std::string& guest_dir) {
-    if (!fs::is_directory(local_dir)) throw Error("bundle is not a directory: " +
-                                                  to_utf8(local_dir.wstring()));
+    if (!fs::is_directory(local_dir))
+        throw Error("bundle is not a directory: " + to_utf8(local_dir.wstring()));
     guest_mkdirs(vm, guest_dir);
     int count = 0;
     for (const auto& entry : fs::recursive_directory_iterator(local_dir)) {
-        if (!entry.is_regular_file()) continue;
+        if (!entry.is_regular_file())
+            continue;
         const fs::path rel = fs::relative(entry.path(), local_dir);
         std::string rel_guest = to_utf8(rel.generic_wstring());
         std::replace(rel_guest.begin(), rel_guest.end(), '/', '\\');
@@ -443,14 +488,18 @@ int Vmware::pull_tree(const std::string& vm, const std::string& guest_dir,
     const std::string base = to_lower(guest_dir);
     for (const auto& raw : split_lines(r.out)) {
         std::string line = trim(raw);
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         if (!contains_ci(line, "File(s)") && !contains_ci(line, "Dir(s)")) {
             // lines are absolute guest paths
         }
-        if (line.size() < 3 || line[1] != ':') continue;
+        if (line.size() < 3 || line[1] != ':')
+            continue;
         std::string rel = line.substr(base.size());
-        if (!rel.empty() && (rel[0] == '\\' || rel[0] == '/')) rel = rel.substr(1);
-        if (rel.empty()) continue;
+        if (!rel.empty() && (rel[0] == '\\' || rel[0] == '/'))
+            rel = rel.substr(1);
+        if (rel.empty())
+            continue;
         std::replace(rel.begin(), rel.end(), '\\', '/');
         const fs::path target = local_dir / fs::path(rel);
         copy_from_guest(vm, line, target);
@@ -468,14 +517,15 @@ std::string Vmware::guest_capture(const std::string& vm, const std::string& comm
     request.timeout = timeout;
     request.run_id = "capture-" + std::to_string(GetTickCount64());
     ExecResult result = run(request);
-    if (ok) *ok = result.ran && !result.timed_out && result.exit_code == 0;
+    if (ok)
+        *ok = result.ran && !result.timed_out && result.exit_code == 0;
     return result.out;
 }
 
 ExecResult Vmware::run(const ExecRequest& request) {
     ExecResult result;
-    result.run_id = request.run_id.empty() ? "run-" + std::to_string(GetTickCount64())
-                                           : request.run_id;
+    result.run_id =
+        request.run_id.empty() ? "run-" + std::to_string(GetTickCount64()) : request.run_id;
     const std::string guest_dir = "C:\\blook\\runs\\" + result.run_id;
     result.guest_dir = guest_dir;
     const std::string job_file = guest_dir + "\\job.cmd";
@@ -511,7 +561,8 @@ ExecResult Vmware::run(const ExecRequest& request) {
                   std::chrono::duration_cast<std::chrono::milliseconds>(request.timeout));
         result.ran = r.started && !r.timed_out;
         result.timed_out = r.timed_out;
-        if (!r.started) result.error = r.error;
+        if (!r.started)
+            result.error = r.error;
     } else {
         // Run through a SYSTEM scheduled task so the command gets a full token
         // even when UAC is enabled in the guest.
@@ -568,13 +619,14 @@ ExecResult Vmware::run(const ExecRequest& request) {
         fs::remove(local, ec);
         const ProcessResult r =
             vmrun({L"-gu", widen(cfg_.guest_user), L"-gp", widen(cfg_.guest_password),
-                   L"copyFileFromGuestToHost", vmx_wide(request.vm), widen(guest),
-                   local.wstring()},
+                   L"copyFileFromGuestToHost", vmx_wide(request.vm), widen(guest), local.wstring()},
                   std::chrono::seconds(60));
         return r.exit_code == 0 && file_exists(local);
     };
-    if (try_pull(out_file, local_out)) result.out = read_text(local_out);
-    if (try_pull(err_file, local_err)) result.err = read_text(local_err);
+    if (try_pull(out_file, local_out))
+        result.out = read_text(local_out);
+    if (try_pull(err_file, local_err))
+        result.err = read_text(local_err);
     if (try_pull(rc_file, local_rc)) {
         try {
             result.exit_code = std::stoi(trim(read_text(local_rc)));
@@ -592,10 +644,16 @@ ExecResult Vmware::run(const ExecRequest& request) {
     return result;
 }
 
-fs::path Vmware::vm_dir_of(const VmInfo& vm) const { return fs::path(to_wide(vm.dir)); }
+fs::path Vmware::vm_dir_of(const VmInfo& vm) const {
+    return fs::path(to_wide(vm.dir));
+}
 
-fs::path Vmware::log_path_of(const VmInfo& vm) const { return vm_dir_of(vm) / L"vmware.log"; }
+fs::path Vmware::log_path_of(const VmInfo& vm) const {
+    return vm_dir_of(vm) / L"vmware.log";
+}
 
-fs::path Vmware::serial_path_of(const VmInfo& vm) const { return vm_dir_of(vm) / L"serial.log"; }
+fs::path Vmware::serial_path_of(const VmInfo& vm) const {
+    return vm_dir_of(vm) / L"serial.log";
+}
 
 }  // namespace blook::bvmenv

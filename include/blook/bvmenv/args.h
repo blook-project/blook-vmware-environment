@@ -14,8 +14,7 @@ struct ParsedArgs {
     std::vector<std::string> trailing;              // everything after "--"
 
     [[nodiscard]] bool has(const std::string& key) const { return flags.count(key) > 0; }
-    [[nodiscard]] std::string get(const std::string& key,
-                                  const std::string& fallback = {}) const {
+    [[nodiscard]] std::string get(const std::string& key, const std::string& fallback = {}) const {
         auto it = flags.find(key);
         return it == flags.end() ? fallback : it->second;
     }

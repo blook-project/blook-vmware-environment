@@ -12,7 +12,8 @@ namespace blook::bvmenv {
 namespace {
 
 json::Value optional_number(const std::optional<long long>& value) {
-    if (!value) return json::Value{};
+    if (!value)
+        return json::Value{};
     return json::Value(*value);
 }
 
@@ -47,18 +48,26 @@ std::string_view to_string(ToolsState s) {
 }
 
 std::optional<PowerState> parse_power_state(std::string_view s) {
-    if (s == "off") return PowerState::Off;
-    if (s == "on") return PowerState::On;
-    if (s == "suspended") return PowerState::Suspended;
-    if (s == "unknown") return PowerState::Unknown;
+    if (s == "off")
+        return PowerState::Off;
+    if (s == "on")
+        return PowerState::On;
+    if (s == "suspended")
+        return PowerState::Suspended;
+    if (s == "unknown")
+        return PowerState::Unknown;
     return std::nullopt;
 }
 
 std::optional<ToolsState> parse_tools_state(std::string_view s) {
-    if (s == "not_installed") return ToolsState::NotInstalled;
-    if (s == "installed") return ToolsState::Installed;
-    if (s == "running") return ToolsState::Running;
-    if (s == "unknown") return ToolsState::Unknown;
+    if (s == "not_installed")
+        return ToolsState::NotInstalled;
+    if (s == "installed")
+        return ToolsState::Installed;
+    if (s == "running")
+        return ToolsState::Running;
+    if (s == "unknown")
+        return ToolsState::Unknown;
     return std::nullopt;
 }
 
@@ -83,13 +92,20 @@ std::string_view to_string(ScreenClass s) {
 }
 
 std::optional<ScreenClass> parse_screen_class(std::string_view s) {
-    if (s == "black") return ScreenClass::Black;
-    if (s == "boot") return ScreenClass::Boot;
-    if (s == "login") return ScreenClass::Login;
-    if (s == "desktop") return ScreenClass::Desktop;
-    if (s == "bsod") return ScreenClass::Bsod;
-    if (s == "hang") return ScreenClass::Hang;
-    if (s == "unknown") return ScreenClass::Unknown;
+    if (s == "black")
+        return ScreenClass::Black;
+    if (s == "boot")
+        return ScreenClass::Boot;
+    if (s == "login")
+        return ScreenClass::Login;
+    if (s == "desktop")
+        return ScreenClass::Desktop;
+    if (s == "bsod")
+        return ScreenClass::Bsod;
+    if (s == "hang")
+        return ScreenClass::Hang;
+    if (s == "unknown")
+        return ScreenClass::Unknown;
     return std::nullopt;
 }
 
@@ -112,12 +128,18 @@ std::string_view to_string(E2eOutcome o) {
 }
 
 std::optional<E2eOutcome> parse_e2e_outcome(std::string_view s) {
-    if (s == "pass") return E2eOutcome::Pass;
-    if (s == "fail") return E2eOutcome::Fail;
-    if (s == "timeout") return E2eOutcome::Timeout;
-    if (s == "bsod") return E2eOutcome::Bsod;
-    if (s == "hang") return E2eOutcome::Hang;
-    if (s == "error") return E2eOutcome::Error;
+    if (s == "pass")
+        return E2eOutcome::Pass;
+    if (s == "fail")
+        return E2eOutcome::Fail;
+    if (s == "timeout")
+        return E2eOutcome::Timeout;
+    if (s == "bsod")
+        return E2eOutcome::Bsod;
+    if (s == "hang")
+        return E2eOutcome::Hang;
+    if (s == "error")
+        return E2eOutcome::Error;
     return std::nullopt;
 }
 
@@ -149,7 +171,8 @@ json::Value ExecResult::to_json() const {
     value["duration_ms"] = static_cast<long long>(duration.count());
     value["stdout_tail"] = out.size() > 8192 ? out.substr(out.size() - 8192) : out;
     value["stderr_tail"] = err.size() > 8192 ? err.substr(err.size() - 8192) : err;
-    if (!error.empty()) value["error"] = error;
+    if (!error.empty())
+        value["error"] = error;
     return value;
 }
 
@@ -204,7 +227,8 @@ json::Value E2eResult::to_json() const {
     out["bundle"] = bundle;
     out["entry"] = entry;
     json::Value arg_list(json::Array{});
-    for (const auto& a : args) arg_list.push(json::Value(a));
+    for (const auto& a : args)
+        arg_list.push(json::Value(a));
     out["args"] = std::move(arg_list);
     out["started_at"] = started_at;
     out["finished_at"] = finished_at;
@@ -217,7 +241,8 @@ json::Value E2eResult::to_json() const {
     out["reset"] = reset.to_json();
     out["state_before"] = state_before.to_json();
     out["state_after"] = state_after.to_json();
-    if (!error.empty()) out["error"] = error;
+    if (!error.empty())
+        out["error"] = error;
     return out;
 }
 
@@ -234,7 +259,9 @@ std::string to_iso8601(std::chrono::system_clock::time_point tp) {
     return buffer;
 }
 
-std::string now_iso8601() { return to_iso8601(std::chrono::system_clock::now()); }
+std::string now_iso8601() {
+    return to_iso8601(std::chrono::system_clock::now());
+}
 
 std::string now_stamp() {
     const std::time_t seconds = std::time(nullptr);

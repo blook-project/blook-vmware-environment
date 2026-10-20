@@ -38,7 +38,8 @@ ULONG read_delay_seconds(PUNICODE_STRING registry_path) {
         }
         ZwClose(key);
     }
-    if (seconds == 0) seconds = 1;
+    if (seconds == 0)
+        seconds = 1;
     return seconds;
 }
 
@@ -66,9 +67,9 @@ extern "C" NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driver_object,
     DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
                "bvmenohang: loaded, hanging in %lu second(s)\n", seconds);
     HANDLE thread = nullptr;
-    const NTSTATUS status = PsCreateSystemThread(
-        &thread, THREAD_ALL_ACCESS, nullptr, nullptr, nullptr, hang_thread,
-        reinterpret_cast<PVOID>(static_cast<ULONG_PTR>(seconds)));
+    const NTSTATUS status =
+        PsCreateSystemThread(&thread, THREAD_ALL_ACCESS, nullptr, nullptr, nullptr, hang_thread,
+                             reinterpret_cast<PVOID>(static_cast<ULONG_PTR>(seconds)));
     if (NT_SUCCESS(status)) {
         ZwClose(thread);
         return STATUS_SUCCESS;

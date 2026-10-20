@@ -22,7 +22,7 @@
 namespace blook::bvmenv {
 
 class Vmware {
-public:
+   public:
     explicit Vmware(Config cfg) : cfg_(std::move(cfg)) {}
 
     [[nodiscard]] const Config& config() const { return cfg_; }
@@ -38,16 +38,14 @@ public:
     void start(const std::string& name, bool gui = false);
     void stop(const std::string& name, bool hard = true);
     void reset_power(const std::string& name);
-    void wait_power(const std::string& name, PowerState desired,
-                    std::chrono::seconds timeout);
+    void wait_power(const std::string& name, PowerState desired, std::chrono::seconds timeout);
 
     void snapshot(const std::string& name, const std::string& snapshot_name);
     [[nodiscard]] bool has_snapshot(const std::string& name,
                                     const std::string& snapshot_name) const;
     void revert(const std::string& name, const std::string& snapshot_name);
     // Linked clone from a snapshot of the base image.
-    void clone_linked(const std::filesystem::path& src_vmx,
-                      const std::filesystem::path& dst_vmx,
+    void clone_linked(const std::filesystem::path& src_vmx, const std::filesystem::path& dst_vmx,
                       const std::string& snapshot_name);
     void delete_vm(const std::string& name);
 
@@ -56,8 +54,7 @@ public:
     [[nodiscard]] ToolInfo tools_info(const std::string& name) const;
     // Captures the guest console framebuffer to a PNG on the host. Works while
     // the guest is booting, bugchecked or hung.
-    bool capture_screenshot(const std::string& name,
-                            const std::filesystem::path& png) const;
+    bool capture_screenshot(const std::string& name, const std::filesystem::path& png) const;
     // Best effort: IP from guest ops, else from the vmnet DHCP lease database.
     [[nodiscard]] std::string guest_ip(const std::string& name) const;
 
@@ -68,6 +65,11 @@ public:
 
     // ---- guest operations (VMware Tools + credentials required) ----------
     bool guest_reachable(const std::string& name) const;
+    // Cheap, bounded "are guest operations alive?" probe. Runs `cmd /c exit 0`
+    // with its own timeout and never pulls artifacts, so it cannot hang the
+    // caller when the guest is at a logon screen / BSOD / hung.
+    bool guest_ping(const std::string& name,
+                    std::chrono::milliseconds timeout = std::chrono::milliseconds(20000)) const;
     ExecResult run(const ExecRequest& request);
     void copy_to_guest(const std::string& vm, const std::filesystem::path& local,
                        const std::string& guest_path);
@@ -80,8 +82,7 @@ public:
                   const std::filesystem::path& local_dir);
     void guest_mkdirs(const std::string& vm, const std::string& guest_dir);
     // Runs a command and returns its stdout (used by base verify).
-    std::string guest_capture(const std::string& vm, const std::string& command,
-                              bool* ok = nullptr,
+    std::string guest_capture(const std::string& vm, const std::string& command, bool* ok = nullptr,
                               std::chrono::seconds timeout = std::chrono::seconds(120));
 
     // ---- raw helpers -----------------------------------------------------
@@ -89,8 +90,7 @@ public:
                         std::chrono::milliseconds timeout = std::chrono::milliseconds(0),
                         bool silent = true) const;
     ProcessResult vmcli(const std::vector<std::wstring>& args,
-                        std::chrono::milliseconds timeout =
-                            std::chrono::milliseconds(0)) const;
+                        std::chrono::milliseconds timeout = std::chrono::milliseconds(0)) const;
     [[nodiscard]] bool service_running() const;
     [[nodiscard]] std::string vmrun_version() const;
 
@@ -99,7 +99,7 @@ public:
     [[nodiscard]] std::filesystem::path log_path_of(const VmInfo& vm) const;
     [[nodiscard]] std::filesystem::path serial_path_of(const VmInfo& vm) const;
 
-private:
+   private:
     [[nodiscard]] std::vector<std::wstring> run_args_base(const VmInfo& vm) const;
     [[nodiscard]] std::wstring vmx_wide(const std::string& name) const;
 

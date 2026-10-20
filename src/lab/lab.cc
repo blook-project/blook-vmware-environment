@@ -71,12 +71,28 @@ void run_checked(const std::vector<std::wstring>& argv, const std::string& what,
     ProcessOptions options;
     options.command_line = build_command_line(argv);
     options.timeout = timeout;
-    if (!workdir.empty()) options.working_dir = workdir;
+    if (!workdir.empty())
+        options.working_dir = workdir;
     const ProcessResult result = run_process(options);
     if (result.exit_code != 0) {
-        throw Error(what + " failed (exit " + std::to_string(result.exit_code) + "): " +
-                    tail_of(trim(result.out + result.err), 2000));
+        throw Error(what + " failed (exit " + std::to_string(result.exit_code) +
+                    "): " + tail_of(trim(result.out + result.err), 2000));
     }
+}
+
+// Looks for a built guest artifact (e.g. the VT-x probe driver) next to the
+// executable, which is how the release package and the build tree ship it.
+fs::path find_guest_artifact(const wchar_t* name) {
+    wchar_t buffer[MAX_PATH * 2];
+    const DWORD len = GetModuleFileNameW(nullptr, buffer, static_cast<DWORD>(std::size(buffer)));
+    if (len == 0) return {};
+    const fs::path base = fs::path(std::wstring(buffer, len)).parent_path();
+    for (const fs::path& dir : {base, base / L"..", base / L".." / L"..", base / L".." / L".." / L".."}) {
+        std::error_code ec;
+        const fs::path candidate = (dir / name).lexically_normal();
+        if (fs::exists(candidate, ec)) return fs::weakly_canonical(candidate, ec);
+    }
+    return {};
 }
 
 std::string run_capture(const std::vector<std::wstring>& argv,
@@ -94,8 +110,10 @@ std::string run_capture(const std::vector<std::wstring>& argv,
 // create / destroy / reset
 // ---------------------------------------------------------------------------
 VmInfo Lab::create(const CreateOptions& options) {
-    if (options.name.empty()) throw Error("vm name is required");
-    if (options.name == "base") throw Error("'base' is reserved for the base image");
+    if (options.name.empty())
+        throw Error("vm name is required");
+    if (options.name == "base")
+        throw Error("'base' is reserved for the base image");
     if (options.from != "base") {
         throw Error("only --from base is supported (linked clones of the base snapshot)");
     }
@@ -133,8 +151,10 @@ VmInfo Lab::create(const CreateOptions& options) {
     vmx.remove("nvram");
     vmx.set("extendedConfigFile", options.name + ".vmxf");
     vmx.set("vmxstats.filename", options.name + ".scoreboard");
-    if (options.cpus > 0) vmx.set("numvcpus", std::to_string(options.cpus));
-    if (options.memory_mb > 0) vmx.set("memsize", std::to_string(options.memory_mb));
+    if (options.cpus > 0)
+        vmx.set("numvcpus", std::to_string(options.cpus));
+    if (options.memory_mb > 0)
+        vmx.set("memsize", std::to_string(options.memory_mb));
     vmx.save(vmx_path);
 
     json::Value meta(json::Object{});
@@ -162,8 +182,10 @@ VmInfo Lab::create(const CreateOptions& options) {
 }
 
 void Lab::destroy(const std::string& name) {
-    if (name == "base") throw Error("refusing to delete the base image");
-    if (!vmware_.find(name)) throw Error("no such VM: " + name);
+    if (name == "base")
+        throw Error("refusing to delete the base image");
+    if (!vmware_.find(name))
+        throw Error("no such VM: " + name);
     vmware_.delete_vm(name);
 }
 
@@ -174,7 +196,8 @@ ResetReport Lab::reset(const std::string& name, const std::string& reason) {
     const auto started = std::chrono::steady_clock::now();
     try {
         const auto info = vmware_.find(name);
-        if (!info) throw Error("no such VM: " + name);
+        if (!info)
+            throw Error("no such VM: " + name);
         if (info->power != PowerState::Off) {
             vmware_.stop(name, true);
             vmware_.wait_power(name, PowerState::Off, std::chrono::seconds(60));
@@ -210,24 +233,34 @@ ResetReport Lab::reset(const std::string& name, const std::string& reason) {
 }
 
 bool Lab::wait_ready(const std::string& name, std::chrono::seconds timeout) {
+    // Fail fast on a bad VM name instead of polling for the whole timeout.
+    const auto info = vmware_.find(name);
+    if (!info) throw Error("no such VM: " + name + " (create it with `bvmenv create " + name + "`)");
+
     const auto deadline = std::chrono::steady_clock::now() + timeout;
-    while (std::chrono::steady_clock::now() < deadline) {
-        if (vmware_.power_state(name) == PowerState::On) {
-            const ToolInfo tools = vmware_.tools_info(name);
-            if (tools.state == ToolsState::Running) {
-                // Tools can report running slightly before guest ops are ready.
-                ExecRequest ping;
-                ping.vm = name;
-                ping.command_line = "echo ready";
-                ping.timeout = std::chrono::seconds(30);
-                ping.run_id = "ping-" + std::to_string(GetTickCount64());
-                const ExecResult result = vmware_.run(ping);
-                if (result.ran && !result.timed_out && result.exit_code == 0) return true;
+    bool started = false;
+    for (;;) {
+        const PowerState power = vmware_.power_state(name);
+        if (power == PowerState::Off) {
+            // wait_ready never powers a VM on: that is `start`/`create`'s job.
+            if (std::chrono::steady_clock::now() >= deadline) {
+                throw Error("VM " + name + " is powered off; start it first (`bvmenv start " + name +
+                            "`)");
             }
+            sleep_ms(1000);
+            continue;
         }
-        sleep_ms(2000);
+        started = true;
+        // Non-blocking tools query first; only probe guest ops when Tools says
+        // it is running, and always with a bounded timeout.
+        const ToolInfo tools = vmware_.tools_info(name);
+        if (tools.state == ToolsState::Running && vmware_.guest_ping(name)) {
+            return true;
+        }
+        if (std::chrono::steady_clock::now() >= deadline) return false;
+        sleep_ms(1000);
     }
-    return false;
+    return started;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +269,8 @@ bool Lab::wait_ready(const std::string& name, std::chrono::seconds timeout) {
 StateReport Lab::sample_once(const std::string& name, const StateOptions& options) {
     StateReport report;
     const auto info = vmware_.find(name);
-    if (!info) throw Error("no such VM: " + name);
+    if (!info)
+        throw Error("no such VM: " + name);
     report.vm = name;
     report.vmx = info->vmx;
     report.power = info->power;
@@ -275,7 +309,10 @@ StateReport Lab::sample_once(const std::string& name, const StateOptions& option
                 } else if (options.use_ocr) {
                     text = ocr_image(png, {}, &engine);
                 }
-                report.screen = classify_screen(*stats, text);
+                ScreenContext screen_context;
+                screen_context.tools_running = report.tools.state == ToolsState::Running;
+                screen_context.guest_queryable = report.guest_queryable;
+                report.screen = classify_screen(*stats, text, screen_context);
                 report.screen.screenshot = to_utf8(png.wstring());
                 if (report.tools.state == ToolsState::Running &&
                     report.screen.classification != ScreenClass::Bsod) {
@@ -312,7 +349,8 @@ StateReport Lab::sample_once(const std::string& name, const StateOptions& option
     for (const auto& issue : report.log_issues) {
         if (contains_ci(issue.message, "STOP") || contains_ci(issue.message, "BugCheck")) {
             const std::string code = extract_stop_code(issue.message);
-            if (!code.empty() && report.screen.stop_code.empty()) report.screen.stop_code = code;
+            if (!code.empty() && report.screen.stop_code.empty())
+                report.screen.stop_code = code;
         }
     }
     return report;
@@ -320,7 +358,8 @@ StateReport Lab::sample_once(const std::string& name, const StateOptions& option
 
 StateReport Lab::state(const std::string& name, const StateOptions& options) {
     const int samples = std::max(1, options.samples);
-    const int interval = options.interval_ms > 0 ? options.interval_ms : cfg_.hang_sample_interval_ms;
+    const int interval =
+        options.interval_ms > 0 ? options.interval_ms : cfg_.hang_sample_interval_ms;
 
     StateReport report = sample_once(name, options);
     report.samples = 1;
@@ -336,7 +375,8 @@ StateReport Lab::state(const std::string& name, const StateOptions& options) {
             std::uint64_t sample_fp = 0;
             if (!sample.screen.screenshot.empty()) {
                 std::string error;
-                if (auto stats = analyze_image(fs::path(to_wide(sample.screen.screenshot)), &error)) {
+                if (auto stats =
+                        analyze_image(fs::path(to_wide(sample.screen.screenshot)), &error)) {
                     sample_fp = stats->fingerprint;
                 }
             }
@@ -353,8 +393,8 @@ StateReport Lab::state(const std::string& name, const StateOptions& options) {
         }
         report.unchanged_samples = unchanged;
         // Hang = the framebuffer never changes AND the guest stopped answering.
-        const bool guest_dead = report.tools.state != ToolsState::Running ||
-                                !vmware_.guest_reachable(name);
+        const bool guest_dead =
+            report.tools.state != ToolsState::Running || !vmware_.guest_reachable(name);
         if (unchanged + 1 >= cfg_.hang_samples && guest_dead &&
             report.screen.classification != ScreenClass::Bsod) {
             report.hang_suspected = true;
@@ -391,7 +431,8 @@ void copy_or_empty(const fs::path& from, const fs::path& to) {
 std::string join_args(const std::vector<std::string>& args) {
     std::string out;
     for (const auto& arg : args) {
-        if (!out.empty()) out += ' ';
+        if (!out.empty())
+            out += ' ';
         const bool needs_quotes = arg.find_first_of(" \t") != std::string::npos;
         out += needs_quotes ? shell_quote(arg) : arg;
     }
@@ -417,7 +458,8 @@ E2eResult Lab::e2e(const E2eRequest& request) {
     result.artifact_dir = to_utf8(artifact_dir.wstring());
 
     try {
-        if (!vmware_.find(request.vm)) throw Error("no such VM: " + request.vm);
+        if (!vmware_.find(request.vm))
+            throw Error("no such VM: " + request.vm);
         // Make sure the VM is up and responsive.
         if (vmware_.power_state(request.vm) != PowerState::On) {
             vmware_.start(request.vm, false);
@@ -507,10 +549,10 @@ E2eResult Lab::e2e(const E2eRequest& request) {
         write_text(artifact_dir / "exec.json", result.exec.to_json().dump(2));
 
         // Reset policy.
-        if (request.reset_on == "always" || (request.reset_on == "failure" &&
-                                             result.outcome != E2eOutcome::Pass)) {
-            result.reset = reset(request.vm, std::string("e2e:") +
-                                                 std::string(to_string(result.outcome)));
+        if (request.reset_on == "always" ||
+            (request.reset_on == "failure" && result.outcome != E2eOutcome::Pass)) {
+            result.reset =
+                reset(request.vm, std::string("e2e:") + std::string(to_string(result.outcome)));
         }
         write_text(artifact_dir / "result.json", result.to_json().dump(2));
         (void)pushed;
@@ -534,9 +576,11 @@ bool Lab::force_bugcheck(const std::string& name) {
     // guest was provisioned with CrashOnCtrlScroll.
     constexpr int kHidScrollLock = 0x47;
     constexpr int kModCtrl = 0x01;
-    if (!vmware_.send_key(name, kHidScrollLock, kModCtrl)) return false;
+    if (!vmware_.send_key(name, kHidScrollLock, kModCtrl))
+        return false;
     sleep_ms(120);
-    if (!vmware_.send_key(name, kHidScrollLock, kModCtrl)) return false;
+    if (!vmware_.send_key(name, kHidScrollLock, kModCtrl))
+        return false;
     return true;
 }
 
@@ -549,15 +593,17 @@ json::Value BaseVerifyReport::to_json() const {
     out["ok"] = ok;
     out["checks"] = checks_json(checks);
     if (!provision_json.empty()) {
-        if (auto parsed = json::Value::parse(provision_json)) out["provision"] = *parsed;
+        if (auto parsed = json::Value::parse(provision_json))
+            out["provision"] = *parsed;
     }
     json::Value notes_json(json::Array{});
-    for (const auto& item_text : notes) notes_json.push(json::Value(item_text));
+    for (const auto& item_text : notes)
+        notes_json.push(json::Value(item_text));
     out["notes"] = std::move(notes_json);
     return out;
 }
 
-BaseVerifyReport Lab::base_verify(const std::string& name) {
+BaseVerifyReport Lab::base_verify(const std::string& name, bool deep) {
     BaseVerifyReport report;
     const VmInfo base = vmware_.base();
     if (!vmware_.has_snapshot("base", kBaseSnapshot)) {
@@ -566,6 +612,24 @@ BaseVerifyReport Lab::base_verify(const std::string& name) {
         return report;
     }
     report.checks.emplace_back("snapshot \"base\" exists on the base image", true);
+    report.checks.emplace_back("base image is powered off",
+                               vmware_.power_state("base") == PowerState::Off);
+    report.checks.emplace_back(
+        "base disk present",
+        blook::bvmenv::file_size(cfg_.base_dir() / L"blook-base.vmdk") > 1024ull * 1024 * 1024);
+    report.checks.emplace_back("base metadata present",
+                               file_exists(cfg_.base_dir() / L"blook-base.vmx"));
+
+    if (!deep) {
+        // Fast, host-side only: never boots anything. The live contract checks
+        // (test signing, VT-x probe, ...) need a booted guest, so they are
+        // opt-in through --deep.
+        report.notes.push_back(
+            "host-side checks only; run `bvmenv base verify --deep` for the live guest contract");
+        report.ok = std::all_of(report.checks.begin(), report.checks.end(),
+                                [](const auto& c) { return c.second; });
+        return report;
+    }
 
     // Verify on a throwaway fork so the base image itself is never dirtied.
     const std::string probe = name == "base" ? "verify-" + now_stamp() : name;
@@ -599,6 +663,14 @@ BaseVerifyReport Lab::base_verify(const std::string& name) {
                 report.checks.emplace_back("guest verification script produced JSON", false);
                 report.notes.push_back("raw output: " + tail_of(trim(raw), 800));
             } else {
+                if ((*parsed)["failures"].is_array()) {
+                    const auto& failures = (*parsed)["failures"].items();
+                    report.checks.emplace_back("provisioning reported no failures",
+                                               failures.empty());
+                    for (const auto& failure : failures) {
+                        report.notes.push_back("provision failure: " + failure.as_string());
+                    }
+                }
                 const json::Value& checks = (*parsed)["checks"];
                 if (checks.is_array()) {
                     for (const auto& item : checks.items()) {
@@ -622,9 +694,8 @@ BaseVerifyReport Lab::base_verify(const std::string& name) {
         }
     }
 
-    report.ok = !report.checks.empty() &&
-                std::all_of(report.checks.begin(), report.checks.end(),
-                            [](const auto& c) { return c.second; });
+    report.ok = !report.checks.empty() && std::all_of(report.checks.begin(), report.checks.end(),
+                                                      [](const auto& c) { return c.second; });
     (void)base;
     return report;
 }
@@ -634,11 +705,13 @@ BaseVerifyReport Lab::base_verify(const std::string& name) {
 // ---------------------------------------------------------------------------
 void Lab::base_build(const BaseBuildOptions& options) {
     if (!is_process_elevated()) {
-        throw Error("`base build` needs an elevated process (diskpart/dism/bcdboot); run it from "
-                    "an elevated shell or via `gsudo -d bvmenv base build`");
+        throw Error(
+            "`base build` needs an elevated process (diskpart/dism/bcdboot); run it from "
+            "an elevated shell or via `gsudo -d bvmenv base build`");
     }
     const fs::path iso = options.iso.empty() ? cfg_.windows_iso : options.iso;
-    if (!file_exists(iso)) throw Error("Windows ISO not found: " + to_utf8(iso.wstring()));
+    if (!file_exists(iso))
+        throw Error("Windows ISO not found: " + to_utf8(iso.wstring()));
     if (!file_exists(cfg_.guest_assets / "unattend.xml")) {
         throw Error("guest assets missing: " + to_utf8(cfg_.guest_assets.wstring()) +
                     " (expected unattend.xml + blook\\*)");
@@ -663,8 +736,8 @@ void Lab::base_build(const BaseBuildOptions& options) {
     // 1. VHD with one active NTFS partition.
     const fs::path dp_create = cfg_.cache_dir() / "diskpart-create.txt";
     std::string dp_script;
-    dp_script += "create vdisk file=\"" + to_utf8(vhd.wstring()) + "\" maximum=" +
-                 std::to_string(options.disk_gb * 1024) + " type=expandable\r\n";
+    dp_script += "create vdisk file=\"" + to_utf8(vhd.wstring()) +
+                 "\" maximum=" + std::to_string(options.disk_gb * 1024) + " type=expandable\r\n";
     dp_script += "select vdisk file=\"" + to_utf8(vhd.wstring()) + "\"\r\n";
     dp_script += "attach vdisk\r\n";
     dp_script += "create partition primary\r\n";
@@ -674,7 +747,8 @@ void Lab::base_build(const BaseBuildOptions& options) {
     write_text(dp_create, dp_script);
     run_checked({L"diskpart.exe", L"/s", dp_create.wstring()}, "diskpart create",
                 std::chrono::minutes(10));
-    if (!file_exists(L"V:\\")) throw Error("VHD was not mounted as V:");
+    if (!file_exists(L"V:\\"))
+        throw Error("VHD was not mounted as V:");
 
     // 2. Apply the image (index 4 = Windows 11 Pro on the consumer media).
     const std::string letter = iso_drive_letter(iso);
@@ -695,7 +769,8 @@ void Lab::base_build(const BaseBuildOptions& options) {
     ensure_dir(L"V:\\Windows\\Setup\\Scripts");
     std::error_code ec;
     for (const auto& entry : fs::recursive_directory_iterator(guest / "blook", ec)) {
-        if (!entry.is_regular_file()) continue;
+        if (!entry.is_regular_file())
+            continue;
         const fs::path rel = fs::relative(entry.path(), guest / "blook");
         const fs::path target = fs::path(L"V:\\blook") / rel;
         ensure_dir(target.parent_path());
@@ -705,14 +780,22 @@ void Lab::base_build(const BaseBuildOptions& options) {
                   fs::copy_options::overwrite_existing, ec);
     fs::copy_file(guest / "unattend.xml", L"V:\\blook\\unattend.xml",
                   fs::copy_options::overwrite_existing, ec);
+    // The VT-x probe driver is a build artifact, not part of the guest payload.
+    if (const fs::path vtx = find_guest_artifact(L"guest-vtx-probe.sys"); !vtx.empty()) {
+        fs::copy_file(vtx, L"V:\\blook\\vtx-probe.sys", fs::copy_options::overwrite_existing, ec);
+    } else {
+        throw Error("guest-vtx-probe.sys not found next to bvmenv.exe; build it with "
+                    "`xmake f --guest_drivers=y && xmake guest-vtx-probe`");
+    }
     write_text(L"V:\\Windows\\Setup\\Scripts\\SetupComplete.cmd",
                "@echo off\r\n"
                "rem blook-vmware-environment: insurance kick for guest provisioning.\r\n"
                "if exist C:\\blook\\stage.cmd call C:\\blook\\stage.cmd\r\n");
 
     // 5. Offline registry hint so the remaining passes find the answer file.
-    run_checked({L"reg.exe", L"load", L"HKLM\\BVM_SYSTEM", L"V:\\Windows\\System32\\config\\SYSTEM"},
-                "reg load", std::chrono::minutes(2));
+    run_checked(
+        {L"reg.exe", L"load", L"HKLM\\BVM_SYSTEM", L"V:\\Windows\\System32\\config\\SYSTEM"},
+        "reg load", std::chrono::minutes(2));
     run_capture({L"reg.exe", L"add", L"HKLM\\BVM_SYSTEM\\Setup", L"/v", L"UnattendFile", L"/t",
                  L"REG_SZ", L"/d", L"C:\\Windows\\Panther\\Unattend\\Unattend.xml", L"/f"});
     run_checked({L"reg.exe", L"unload", L"HKLM\\BVM_SYSTEM"}, "reg unload",
@@ -720,14 +803,15 @@ void Lab::base_build(const BaseBuildOptions& options) {
 
     // 6. Detach + convert to VMDK (VMDK is required for snapshots/clones).
     const fs::path dp_detach = cfg_.cache_dir() / "diskpart-detach.txt";
-    write_text(dp_detach, "select vdisk file=\"" + to_utf8(vhd.wstring()) + "\"\r\ndetach vdisk\r\n");
+    write_text(dp_detach,
+               "select vdisk file=\"" + to_utf8(vhd.wstring()) + "\"\r\ndetach vdisk\r\n");
     run_checked({L"diskpart.exe", L"/s", dp_detach.wstring()}, "diskpart detach",
                 std::chrono::minutes(5));
     sleep_ms(2000);
-    run_checked({cfg_.vdiskmanager().wstring(), L"-r", vhd.wstring(), L"-t", L"0",
-                 vmdk.wstring()},
+    run_checked({cfg_.vdiskmanager().wstring(), L"-r", vhd.wstring(), L"-t", L"0", vmdk.wstring()},
                 "vhd->vmdk conversion", std::chrono::minutes(30));
-    if (!file_exists(vmdk)) throw Error("VMDK conversion produced no disk");
+    if (!file_exists(vmdk))
+        throw Error("VMDK conversion produced no disk");
 
     // 7. VM definition (bios firmware: VMware's EFI firmware does not boot this
     //    install media from SATA, and Secure Boot must stay off anyway).
@@ -754,8 +838,8 @@ void Lab::base_build(const BaseBuildOptions& options) {
     vmx.set("sata0:0.deviceType", "disk");
     vmx.set("sata0:1.present", "TRUE");
     vmx.set("sata0:1.deviceType", "cdrom-image");
-    vmx.set("sata0:1.fileName", to_utf8(
-        (cfg_.vmware_dir / L"windows.iso").wstring()));  // VMware Tools media
+    vmx.set("sata0:1.fileName",
+            to_utf8((cfg_.vmware_dir / L"windows.iso").wstring()));  // VMware Tools media
     vmx.set("sata0:1.startConnected", "TRUE");
     vmx.set("ethernet0.present", "TRUE");
     vmx.set("ethernet0.connectionType", "nat");
@@ -814,26 +898,22 @@ json::Value Lab::doctor() {
     std::vector<std::pair<std::string, bool>> checks;
     checks.emplace_back("vmrun.exe present", file_exists(cfg_.vmrun()));
     checks.emplace_back("vmcli.exe present", file_exists(cfg_.vmcli()));
-    checks.emplace_back("vmware-vdiskmanager.exe present",
-                        file_exists(cfg_.vdiskmanager()));
+    checks.emplace_back("vmware-vdiskmanager.exe present", file_exists(cfg_.vdiskmanager()));
     checks.emplace_back("VMAuthdService running", vmware_.service_running());
     checks.emplace_back("Windows ISO present", file_exists(cfg_.windows_iso));
-    checks.emplace_back("guest assets present",
-                        file_exists(cfg_.guest_assets / "unattend.xml"));
+    checks.emplace_back("guest assets present", file_exists(cfg_.guest_assets / "unattend.xml"));
     checks.emplace_back("base image present", file_exists(cfg_.base_vmx()));
-    checks.emplace_back("base snapshot present",
-                        file_exists(cfg_.base_vmx()) &&
-                            vmware_.has_snapshot("base", kBaseSnapshot));
+    checks.emplace_back("base snapshot present", file_exists(cfg_.base_vmx()) &&
+                                                     vmware_.has_snapshot("base", kBaseSnapshot));
     const std::wstring tesseract = find_executable(L"tesseract");
-    checks.emplace_back("OCR engine available",
-                        !tesseract.empty() || !cfg_.ocr_command.empty());
+    checks.emplace_back("OCR engine available", !tesseract.empty() || !cfg_.ocr_command.empty());
 
     out["checks"] = checks_json(checks);
-    out["ok"] = std::all_of(checks.begin(), checks.end(),
-                            [](const auto& c) { return c.second; });
+    out["ok"] = std::all_of(checks.begin(), checks.end(), [](const auto& c) { return c.second; });
     std::string version_error;
     out["config_ok"] = cfg_.validate(&version_error);
-    if (!version_error.empty()) out["config_error"] = version_error;
+    if (!version_error.empty())
+        out["config_error"] = version_error;
     out["vmrun_version"] = vmware_.vmrun_version();
 
     json::Value vms(json::Array{});

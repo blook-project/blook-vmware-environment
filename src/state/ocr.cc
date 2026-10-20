@@ -31,11 +31,13 @@ std::string ocr_image(const fs::path& png, const fs::path& configured_command,
         exe = found2;
         engine = "tesseract";
     } else {
-        if (engine_out) engine_out->clear();
+        if (engine_out)
+            engine_out->clear();
         return {};
     }
 
-    if (engine_out) *engine_out = engine;
+    if (engine_out)
+        *engine_out = engine;
     const std::wstring png_w = png.wstring();
     const bool is_tesseract = engine == "tesseract";
     const std::vector<std::vector<std::wstring>> attempts = is_tesseract

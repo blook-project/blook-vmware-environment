@@ -16,7 +16,7 @@ namespace blook::bvmenv {
 // Structured, user facing error. main() turns this into a JSON error object and
 // a non-zero exit code.
 class Error : public std::runtime_error {
-public:
+   public:
     explicit Error(const std::string& what) : std::runtime_error(what) {}
 };
 
@@ -46,10 +46,16 @@ std::string printable_ascii(std::string_view s);
 
 void sleep_ms(int ms);
 
+// Every external command is timestamped into this file when enabled
+// (`--verbose`); useful because the lab is a pile of subprocesses.
+void set_command_log(const fs::path& log_file);
+void log_command(std::wstring_view command_line, long long duration_ms, int exit_code,
+                 bool timed_out);
+
 // Host side log. Everything goes to a log file when one is configured, and
 // errors always go to stderr.
 class Logger {
-public:
+   public:
     Logger() = default;
     void configure(bool verbose, fs::path log_file);
     void info(std::string_view message) const;
@@ -58,7 +64,7 @@ public:
 
     [[nodiscard]] bool verbose() const { return verbose_; }
 
-private:
+   private:
     void emit(std::string_view level, std::string_view message) const;
     bool verbose_ = false;
     fs::path log_file_;
@@ -67,13 +73,13 @@ private:
 // Cross-process lock so that concurrent bvmenv invocations do not corrupt lab
 // state. Backed by a named mutex; released on scope exit.
 class FileLock {
-public:
+   public:
     FileLock(const std::string& name, std::chrono::milliseconds timeout);
     ~FileLock();
     FileLock(const FileLock&) = delete;
     FileLock& operator=(const FileLock&) = delete;
 
-private:
+   private:
     void* handle_ = nullptr;
 };
 

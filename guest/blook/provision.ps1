@@ -309,24 +309,83 @@ if (-not (Test-Path -LiteralPath $phase2Marker)) {
         Log ('VMTools: ' + $svc.Status)
     }
 
+    Invoke-Step 'persistent autologon' {
+        # The unattend AutoLogon count only covers the first logons; forks boot
+        # many times, so autologon has to live in the registry. Guest operations
+        # (vmrun runProgramInGuest) need an interactive session, so a fork that
+        # lands on the logon screen is unusable.
+        $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+        Set-Reg $winlogon 'AutoAdminLogon' '1' 'String'
+        Set-Reg $winlogon 'DefaultUserName' 'blook' 'String'
+        Set-Reg $winlogon 'DefaultPassword' 'blook' 'String'
+        Set-Reg $winlogon 'DefaultDomainName' $env:COMPUTERNAME 'String'
+        Set-Reg $winlogon 'ForceAutoLogon' '1' 'String'
+        Set-Reg $winlogon 'AutoLogonCount' 9999
+        # Never let a screensaver / lock screen cover the desktop.
+        Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' 'NoLockScreen' 1
+        Set-Reg 'HKCU:\Control Panel\Desktop' 'ScreenSaveActive' '0' 'String'
+        $autologon = ((Get-ItemProperty $winlogon -Name AutoAdminLogon -ErrorAction SilentlyContinue).AutoAdminLogon -eq '1')
+        if (-not $autologon) { throw 'AutoAdminLogon registry value not set' }
+    }
+
     Invoke-Step 'verify baseline' {
-        $bcd = & bcdedit.exe /enum '{current}' | Out-String
+        # Make sure the guest does not launch Microsoft's hypervisor: the lab
+        # needs VT-x for a *nested* hypervisor. bcdedit silently drops the value
+        # in some configurations, so set it again and record the raw answer.
+        & bcdedit.exe /set '{current}' hypervisorlaunchtype off 2>&1 | ForEach-Object { Log ('hypervisorlaunchtype: ' + $_) }
+        $bcd = (& bcdedit.exe /enum '{current}' 2>&1) | Out-String
+        $bcdLines = (($bcd -split "`r?`n") | Where-Object { $_ -match 'testsigning|nointegritychecks|hypervisorlaunchtype|^debug\b|debugport|bootstatuspolicy' }) -join '; '
+        $hypervisorPresent = [bool](Get-CimInstance Win32_ComputerSystem).HypervisorPresent
         $state = [ordered]@{
-            testsigning         = ($bcd -match '(?m)^testsigning\s+Yes')
-            nointegritychecks   = ($bcd -match '(?m)^nointegritychecks\s+Yes')
-            debug               = ($bcd -match '(?m)^debug\s+Yes')
-            hypervisorlaunchtype = ($bcd -match '(?m)^hypervisorlaunchtype\s+Off')
-            enablelua           = ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -ErrorAction SilentlyContinue).EnableLUA -eq 0)
-            autoreboot_off      = ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' -Name AutoReboot -ErrorAction SilentlyContinue).AutoReboot -eq 0)
-            display_params      = ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' -Name DisplayParameters -ErrorAction SilentlyContinue).DisplayParameters -eq 1)
-            hiberboot_off       = ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' -Name HiberbootEnabled -ErrorAction SilentlyContinue).HiberbootEnabled -eq 0)
-            vbs_off             = ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name EnableVirtualizationBasedSecurity -ErrorAction SilentlyContinue).EnableVirtualizationBasedSecurity -eq 0)
-            tools_running       = ((Get-Process -Name vmtoolsd -ErrorAction SilentlyContinue) -ne $null)
-            admin_user          = ([bool](Get-LocalUser -Name blook -ErrorAction SilentlyContinue))
+            testsigning          = ($bcd -match '(?m)^testsigning\s+Yes')
+            nointegritychecks    = ($bcd -match '(?m)^nointegritychecks\s+Yes')
+            debug                = ($bcd -match '(?m)^debug\s+Yes')
+            hypervisorlaunchtype = ((-not $hypervisorPresent) -and ($bcd -match '(?m)^hypervisorlaunchtype\s+Off'))
+            hypervisor_present   = (-not $hypervisorPresent)
+            enablelua            = ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -ErrorAction SilentlyContinue).EnableLUA -eq 0)
+            autoreboot_off       = ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' -Name AutoReboot -ErrorAction SilentlyContinue).AutoReboot -eq 0)
+            display_params       = ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' -Name DisplayParameters -ErrorAction SilentlyContinue).DisplayParameters -eq 1)
+            hiberboot_off        = ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' -Name HiberbootEnabled -ErrorAction SilentlyContinue).HiberbootEnabled -eq 0)
+            vbs_off              = ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name EnableVirtualizationBasedSecurity -ErrorAction SilentlyContinue).EnableVirtualizationBasedSecurity -eq 0)
+            crash_on_ctrl_scroll = ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\i8042prt\Parameters' -Name CrashOnCtrlScroll -ErrorAction SilentlyContinue).CrashOnCtrlScroll -eq 1)
+            tools_running        = ((Get-Process -Name vmtoolsd -ErrorAction SilentlyContinue) -ne $null)
+            admin_user           = ([bool](Get-LocalUser -Name blook -ErrorAction SilentlyContinue))
+            autologon            = ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -ErrorAction SilentlyContinue).AutoAdminLogon -eq '1')
         }
         $script:verified = $state
+        $script:bcdLines = $bcdLines
         Log ('baseline: ' + ($state | ConvertTo-Json -Compress))
+        Log ('bcdedit: ' + $bcdLines)
         foreach ($k in $state.Keys) { if (-not $state[$k]) { $script:Failures += "verify:$k" } }
+    }
+
+    Invoke-Step 'vtx probe (CPUID VMX + IA32_FEATURE_CONTROL)' {
+        # Ring 0 probe: user mode cannot read IA32_FEATURE_CONTROL, and a nested
+        # hypervisor needs VMX plus VMXON outside SMX.
+        $script:vtx = $null
+        $probeDriver = 'C:\blook\vtx-probe.sys'
+        if (-not (Test-Path -LiteralPath $probeDriver)) {
+            throw "vtx probe driver missing: $probeDriver"
+        }
+        Copy-Item -LiteralPath $probeDriver -Destination 'C:\Windows\System32\drivers\bvmenv-vtx-probe.sys' -Force
+        & sc.exe create bvmenv-vtx-probe type= kernel binPath= C:\Windows\System32\drivers\bvmenv-vtx-probe.sys 2>&1 | Out-Null
+        & sc.exe start bvmenv-vtx-probe 2>&1 | ForEach-Object { Log ('vtx probe: ' + $_) }
+        Start-Sleep -Seconds 2
+        & sc.exe stop bvmenv-vtx-probe 2>&1 | Out-Null
+        & sc.exe delete bvmenv-vtx-probe 2>&1 | Out-Null
+        $values = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\blook\vtx-probe' -ErrorAction SilentlyContinue
+        if ($null -eq $values) { throw 'vtx probe did not write HKLM\SOFTWARE\blook\vtx-probe' }
+        $script:vtx = [ordered]@{
+            cpuid_vmx              = [int]$values.CpuidVmx
+            hypervisor_present     = [int]$values.HypervisorPresent
+            feature_control_locked = [int]$values.FeatureControlLocked
+            vmxon_outside_smx      = [int]$values.VmxOnOutsideSmx
+            feature_control_low    = ('0x{0:x8}' -f [int]$values.FeatureControlLow)
+            vmx_basic_low          = ('0x{0:x8}' -f [int]$values.VmxBasicLow)
+            ok                     = ([int]$values.ProbeResult -eq 1)
+        }
+        Log ('vtx probe: ' + ($script:vtx | ConvertTo-Json -Compress))
+        if (-not $script:vtx.ok) { $script:Failures += 'verify:vtx_probe' }
     }
 
     Invoke-Step 'write provision probe' {
@@ -339,12 +398,15 @@ if (-not (Test-Path -LiteralPath $phase2Marker)) {
             tools_installed   = (Test-Path -LiteralPath 'C:\Program Files\VMware\VMware Tools\vmtoolsd.exe')
             tools_version     = (Get-Item 'C:\Program Files\VMware\VMware Tools\vmtoolsd.exe' -ErrorAction SilentlyContinue).VersionInfo.FileVersion
             admin_user        = 'blook'
+            autologon         = ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -ErrorAction SilentlyContinue).AutoAdminLogon -eq '1')
             baseline          = $script:verified
+            bcdedit_lines     = $script:bcdLines
+            nested_virt       = $script:vtx
             phases_done       = @('phase1', 'phase2')
             failures          = $script:Failures
             finished_at       = (Get-Date).ToString('o')
         }
-        $probe | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath 'C:\blook\provision.json' -Encoding UTF8
+        $probe | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath 'C:\blook\provision.json' -Encoding UTF8
         Log ('provision.json written; failures: ' + (($script:Failures -join ',')))
     }
 

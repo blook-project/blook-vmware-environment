@@ -19,7 +19,7 @@ using Array = std::vector<Value>;
 using Object = std::map<std::string, Value, std::less<>>;
 
 class Value {
-public:
+   public:
     enum class Type { Null, Bool, Number, String, Array, Object };
 
     Value() = default;
@@ -63,7 +63,7 @@ public:
     // Parse. Returns nullopt and fills `error` on malformed input.
     static std::optional<Value> parse(std::string_view text, std::string* error = nullptr);
 
-private:
+   private:
     void dump_to(std::string& out, int indent, int depth) const;
 
     Type type_ = Type::Null;
