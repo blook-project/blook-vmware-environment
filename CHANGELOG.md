@@ -4,6 +4,20 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.5] - 2026-10-22
+
+### Fixed
+
+- **Kernel dumps were still not written on a real bugcheck**, even with
+  `CrashDumpEnabled=1`: there was no page file and no dedicated dump file, so
+  Windows silently skipped the dump. Provisioning now sets
+  `PagingFiles = C:\pagefile.sys 4096 16384`, `DedicatedDumpFile =
+  C:\dedicateddump.sys` (pre-created, 8 GB) and `DumpFileSize = 8192`. Verified:
+  the same bugcheck that previously wrote nothing produced a **6.4 GB
+  `C:\Windows\MEMORY.DMP`**, and `state` returned `hang` for the wedged guest.
+- `dump pull`'s guest-to-host copy budget raised to one hour (kernel dumps are
+  multi-GB and the previous 300 s window aborted the transfer).
+
 ## [0.2.4] - 2026-10-21
 
 ### Fixed

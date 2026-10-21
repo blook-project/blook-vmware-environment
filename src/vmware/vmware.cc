@@ -499,7 +499,8 @@ void Vmware::copy_from_guest(const std::string& vm, const std::string& guest_pat
     const ProcessResult r =
         vmrun({L"-gu", widen(cfg_.guest_user), L"-gp", widen(cfg_.guest_password),
                L"copyFileFromGuestToHost", vmx_wide(vm), widen(guest_path), local.wstring()},
-              std::chrono::seconds(300));
+              // A kernel dump is multi-GB: the copy needs a generous budget.
+              std::chrono::seconds(3600));
     if (r.exit_code != 0) {
         throw Error("copy from guest failed (" + guest_path + " -> " + to_utf8(local.wstring()) +
                     "): " + trim(r.out + r.err));

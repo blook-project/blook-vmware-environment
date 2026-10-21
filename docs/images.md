@@ -163,14 +163,38 @@ route; use `bvmenv dump pull` (below) for kd-free evidence.
 
 ## Kernel dumps (kd-free evidence path)
 
-Provisioning sets `CrashDumpEnabled=1`, `DumpFile=C:\Windows\MEMORY.DMP`,
-`Overwrite=1`, `AlwaysKeepMemoryDump=1`. After a forced bugcheck:
+Provisioning configures dumps deterministically: `CrashDumpEnabled=1`,
+`DumpFile=C:\Windows\MEMORY.DMP`, `MinidumpDir`, `Overwrite=1`,
+`AlwaysKeepMemoryDump=1`, **plus the two things without which nothing is
+written**: a page file (`PagingFiles = C:\pagefile.sys 4096 16384`) and a
+pre-created dedicated dump file (`DedicatedDumpFile = C:\dedicateddump.sys`,
+8 GB, `DumpFileSize = 8192`). Without those, Windows silently produces no
+`MEMORY.DMP` - measured: the same bugcheck wrote nothing until both existed, then
+produced a **6.4 GB** `MEMORY.DMP`.
+
+Workflow:
 
 ```powershell
-bvmenv crash <vm>                                  # 0xE2 (or a test driver bugcheck)
-bvmenv dump pull <vm> --out vm.dmp --json          # copies C:\Windows\MEMORY.DMP
-kd -z vm.dmp -c "!analyze -v; ~* kv; q"            # offline, no kd attached to the VM
+bvmenv crash <vm>                       # 0xE2, or a test driver that bugchecks
+bvmenv state <vm> --json                # bsod (frame) or hang (VIX dead) - both are verdicts
+bvmenv start <vm>                       # ONE reboot: the dump is assembled at boot
+bvmenv dump pull <vm> --out vm.dmp --json
+kd -z vm.dmp -c "!analyze -v; ~* kv; q" # offline analysis, no kd attached to the VM
 ```
 
-`dump pull` was verified end-to-end (10 MB `C:\Windows\MEMORY.DMP` copied off a
-live fork).
+Notes: the copy has a one-hour budget (a kernel dump is multi-GB); `dump pull`
+reports the copy error in JSON; `verify.ps1` ("crash dump configured") and
+`doctor.crash_dump` guard against regressions.
+
+## Hang vs unknown in `state`
+
+A powered-on guest that stops answering is a **hang**, never `unknown`:
+
+* probes exhaust their budget (VIX dead, no bugcheck frame obtainable) -> `hang`,
+  reason "guest did not answer VIX probes ... (wedged: tools heartbeat lost)";
+* tools stopped and the frame is unclassifiable -> `hang`;
+* three unchanged frames with a dead guest -> `hang` (classic path).
+
+`state --budget <seconds>` controls the per-sample budget (default 20 s).
+Measured on a genuinely wedged guest: `classification: "hang"` before the reboot
+that assembled its 6.4 GB dump.

@@ -203,11 +203,24 @@ if (-not (Test-Path -LiteralPath $phase1Marker)) {
         # Kernel dump: the lab needs MEMORY.DMP for kd-free evidence (`bvmenv dump pull`).
         # CrashDumpEnabled 1 = kernel dump; the page file is system-managed and
         # large enough on this image (16 GB RAM).
-        Set-Reg $cc 'CrashDumpEnabled' 1
+        # 2 = kernel memory dump: enough for `kd -z` stack analysis and much
+        # smaller than a complete dump (1 produced 6.4 GB here).
+        Set-Reg $cc 'CrashDumpEnabled' 2
         Set-Reg $cc 'DumpFile' 'C:\Windows\MEMORY.DMP' -Type String
         Set-Reg $cc 'MinidumpDir' 'C:\Windows\Minidump' -Type String
         Set-Reg $cc 'Overwrite' 1
         Set-Reg $cc 'AlwaysKeepMemoryDump' 1
+        # A kernel dump needs somewhere to go at bugcheck time: a page file
+        # (system-managed is fine) AND a pre-created dedicated dump file. Without
+        # either, Windows writes no MEMORY.DMP and `bvmenv dump pull` finds
+        # nothing (measured: 6.4 GB dump appeared only once both existed).
+        Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' 'PagingFiles' @('C:\pagefile.sys 4096 16384') -Type MultiString
+        Set-Reg $cc 'DedicatedDumpFile' 'C:\dedicateddump.sys' -Type String
+        Set-Reg $cc 'DumpFileSize' 8192
+        if (-not (Test-Path -LiteralPath 'C:\dedicateddump.sys')) {
+            & fsutil.exe file createnew C:\dedicateddump.sys 8589934592 | Out-Null
+            Log 'crash dump: created C:\dedicateddump.sys (8 GB)'
+        }
         Log ('crash dump: CrashDumpEnabled=' + (Get-ItemProperty -Path $cc -Name CrashDumpEnabled).CrashDumpEnabled + ' DumpFile=' + (Get-ItemProperty -Path $cc -Name DumpFile).DumpFile)
         Set-Reg $cc 'LogEvent' 1
         Set-Reg $cc 'Overwrite' 1

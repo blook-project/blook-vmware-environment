@@ -1,1 +1,1 @@
-known-good: bvmenv-9e35760.exe (git 9e35760, version 0.2.3). DSE-on image + SPC SHA-1 proven. KD opt-in (--unsafe-kd); serial capture unavailable.
+known-good: bvmenv-df2e2b6.exe (git df2e2b6, version 0.2.4). Dumps enabled, hang verdict for wedged guests, DSE-on SPC SHA-1 image.
