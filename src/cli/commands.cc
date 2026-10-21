@@ -795,6 +795,21 @@ int cmd_kd(Context& ctx, const ParsedArgs& args) {
         return 2;
     }
     const std::string pipe = kd_pipe_name(name);
+
+    // A fork without the pipe serial cannot be debugged: say so instead of
+    // waiting forever on a pipe server that never appears.
+    {
+        const Vmx vmx = Vmx::load(fs::path(to_wide(ctx.vmware.find(name)->vmx)));
+        const bool is_pipe =
+            to_lower(vmx.get("serial0.fileType")) == "pipe" && vmx.get("serial0.fileName") == pipe;
+        if (!is_pipe) {
+            std::cerr << "bvmenv: " << name << " has no KD pipe (serial0 is not " << pipe
+                      << "); convert it with `bvmenv kd-pipe " << name
+                      << "` (VM powered off) or re-create it with --kd-pipe\n";
+            return 2;
+        }
+    }
+
     const fs::path kd = find_kd();
     if (kd.empty()) {
         std::cerr << "bvmenv: kd.exe not found (install the Windows SDK Debugging Tools)\n";
@@ -865,14 +880,21 @@ int cmd_kd(Context& ctx, const ParsedArgs& args) {
     CloseHandle(in_read);
 
     const int run_seconds = break_after > 0 ? break_after : seconds;
+    const PowerState power_before = ctx.vmware.power_state(name);
     if (args.has("reset")) {
-        // Attach first, then reset so KD catches the boot.
-        sleep_ms(4000);
+        // Attach first, then let KD catch the boot: a powered-off fork has to be
+        // started, a running one is reset. kd itself waits for the pipe server.
+        sleep_ms(3000);
         try {
-            ctx.vmware.reset_power(name);
-            out["reset"] = true;
+            if (power_before == PowerState::Off) {
+                ctx.vmware.start(name, false);
+                out["started"] = true;
+            } else {
+                ctx.vmware.reset_power(name);
+                out["reset"] = true;
+            }
         } catch (const std::exception& e) {
-            out["reset_error"] = e.what();
+            out["boot_error"] = e.what();
         }
     }
 

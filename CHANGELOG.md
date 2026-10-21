@@ -4,6 +4,20 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.5] - 2026-10-21
+
+### Fixed
+
+- `kd-log` on a fork that was not created with `--kd-pipe` (or not converted)
+  now fails fast with an actionable message instead of waiting forever on a pipe
+  server that never appears: `has no KD pipe (serial0 is not \\.\pipe\blook-<vm>-kd);
+  convert it with bvmenv kd-pipe <vm> (VM powered off) or re-create it with
+  --kd-pipe` (exit code 2).
+- `kd-log --reset` now handles a **powered-off** fork: it starts the VM (which is
+  what makes KD catch the boot) instead of resetting nothing; a running fork is
+  still reset. Verified: `started: true`, `connected: true`,
+  `Connected to Windows 10 26100 x64 target ...`.
+
 ## [0.1.4] - 2026-10-21
 
 ### Added
