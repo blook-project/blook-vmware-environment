@@ -57,3 +57,14 @@ variant can be introduced as an option (`--firmware efi`) with the steps above.
 The lab deliberately builds from the vendor ISO so that the base image can be
 rebuilt on any host with the same ISO hash, and so that every provisioning step
 is reviewable in version control instead of hiding in a binary blob.
+
+## Concurrency budget
+
+Never run more than **3** guests at once on this host (64 GB RAM, ~6 GB per
+guest). Six concurrent guests froze the host on 2026-10-21 (Kernel-Power 41, no
+dump): the failure mode is host memory/IO starvation, not a guest bug.
+
+`bvmenv` enforces this: `start`/`create` refuse to bring up a fourth managed VM
+unless `--allow-many` is passed, and `bvmenv doctor` reports the running count,
+their memory footprint and free host RAM. Stale forks left by a host reboot are
+removed with `bvmenv delete <vm> --force` (only when no `vmware-vmx` holds them).

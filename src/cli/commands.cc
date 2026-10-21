@@ -196,7 +196,24 @@ int cmd_create(Context& ctx, const ParsedArgs& args) {
 int cmd_delete(Context& ctx, const ParsedArgs& args) {
     if (const int rc = require_name(args, "delete"); rc)
         return rc;
-    ctx.lab.destroy(args.positional[0]);
+    const std::string name = args.positional[0];
+    try {
+        ctx.lab.destroy(name);
+    } catch (const std::exception& e) {
+        ctx.logger.info(std::string("destroy failed: ") + e.what());
+        if (!args.has("force"))
+            throw;
+        // Stale fork: no VMware process holds it, so removing the directory is
+        // safe (a live VM keeps its files locked and the removal fails loudly).
+        const fs::path dir = ctx.config.vm_root / "vms" / name;
+        std::error_code ec;
+        fs::remove_all(dir, ec);
+        if (ec) {
+            throw Error(std::string("force delete failed (a process may hold the VM): ") +
+                        ec.message());
+        }
+        ctx.logger.info("force-deleted stale fork directory: " + to_utf8(dir.wstring()));
+    }
     json::Value out(json::Object{});
     out["schema"] = std::string("bvmenv.delete.v1");
     out["ok"] = true;

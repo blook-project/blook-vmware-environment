@@ -36,6 +36,10 @@ class Vmware {
 
     // ---- lifecycle -------------------------------------------------------
     void start(const std::string& name, bool gui = false);
+    // Managed VMs (forks + base) that are powered on right now.
+    [[nodiscard]] int running_managed_count() const;
+    // Bypass the concurrent-VM budget (`--allow-many`).
+    void set_allow_many(bool allow) { allow_many_ = allow; }
     void stop(const std::string& name, bool hard = true);
     void reset_power(const std::string& name);
     void wait_power(const std::string& name, PowerState desired, std::chrono::seconds timeout);
@@ -115,6 +119,7 @@ class Vmware {
     [[nodiscard]] std::wstring vmx_wide(const std::string& name) const;
 
     Config cfg_;
+    bool allow_many_ = false;
 };
 
 }  // namespace blook::bvmenv

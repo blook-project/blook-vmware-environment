@@ -76,6 +76,25 @@ gsudo -d .\build\windows\x64\releasedbg\bvmenv.exe base build
 .\build\windows\x64\releasedbg\bvmenv.exe reset vm-drv
 ```
 
+## Concurrency budget (hard rule)
+
+This host froze twice with many concurrent guests (the second time with six
+VMware VMs up, no host kernel code running). bvmenv therefore **refuses to start
+a managed VM when 3 are already running**:
+
+```
+bvmenv: VM budget reached (3 of 3 managed VMs running: vm-drv, vm-kdu, vm-kchannel);
+        stop one first (bvmenv stop <vm>) or pass --allow-many
+```
+
+* 64 GB RAM, ~6 GB per guest: 3 guests leaves >30 GB free. Do not exceed it.
+* `--allow-many` bypasses the guard for a deliberate exception;
+  `BVMENV_MAX_RUNNING_VMS` overrides the budget (default 3).
+* `bvmenv doctor` reports `running_vms`, `running_memory_mb`, `free_ram_mb` and
+  `max_running_vms`, and has a "running managed VMs within budget" check.
+* A stale fork (directory without a `vmware-vmx` process, e.g. after a host
+  reboot) is removed with `bvmenv delete <vm> --force`.
+
 ## Measured performance (this host, Windows 11 build 26100, Workstation 25.0.0)
 
 Real numbers from [`docs/evidence/20261021-lab-run/`](docs/evidence/20261021-lab-run)

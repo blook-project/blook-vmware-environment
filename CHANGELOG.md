@@ -4,6 +4,29 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.7] - 2026-10-21
+
+### Added
+
+- **Concurrency guard**: `start`/`create` refuse to bring up a managed VM when 3
+  are already running, listing them, unless `--allow-many` is passed
+  (`BVMENV_MAX_RUNNING_VMS` overrides the budget). Motivated by the host freeze
+  of 2026-10-21 with six concurrent guests (Kernel-Power 41, no dump), where no
+  host kernel code was running.
+- `bvmenv doctor` reports `running_vms`, `running_memory_mb`, `free_ram_mb`,
+  `max_running_vms` and a "running managed VMs within budget" check.
+- `bvmenv delete <vm> --force` removes a stale fork directory (no `vmware-vmx`
+  holds it, e.g. after a host reboot); a live VM keeps its files locked and the
+  removal fails loudly.
+
+### Fixed
+
+- `--timeout` classification is now sticky: a guest command that consumed its
+  whole budget is reported `timed_out: true` (exit code -1) even when its
+  exit-code artifact only arrives after the client window closed. This is what
+  made `e2e --timeout` report `pass` for a command bvmenv had already killed.
+- `bvmenv.exec.v1` reports `exec_timeout_s` (0.1.6).
+
 ## [0.1.6] - 2026-10-21
 
 ### Added

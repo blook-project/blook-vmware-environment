@@ -30,6 +30,9 @@ struct Config {
     // Hard wall-clock timeout applied to every external command that does not
     // ask for its own (BVMENV_CMD_TIMEOUT_MS overrides).
     int command_timeout_ms = 300000;
+    // Hard operational limit: this host froze twice with ~6 concurrent guests.
+    // Starting a managed VM above this budget is refused unless --allow-many.
+    int max_running_vms = 3;  // 64 GB host: 3 x 6 GB leaves >30 GB free
     int hang_sample_interval_ms = 2000;
 
     bool verbose = false;

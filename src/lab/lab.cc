@@ -1159,6 +1159,32 @@ json::Value Lab::doctor() {
     for (const auto& entry : attached_file_backed_vhds())
         attached.push(json::Value(entry));
     out["attached_vhds"] = std::move(attached);
+
+    // Operational budget: the host froze with six concurrent guests, so the
+    // guard is enforced in Vmware::start and surfaced here.
+    int running = 0;
+    long long running_memory_mb = 0;
+    try {
+        for (const auto& vm : vmware_.list()) {
+            if (vm.power != PowerState::On)
+                continue;
+            ++running;
+            running_memory_mb += vm.memory_mb;
+        }
+    } catch (const std::exception& e) {
+        out["vms_error"] = e.what();
+    }
+    MEMORYSTATUSEX memory{};
+    memory.dwLength = sizeof(memory);
+    long long free_ram_mb = 0;
+    if (GlobalMemoryStatusEx(&memory)) {
+        free_ram_mb = static_cast<long long>(memory.ullAvailPhys / (1024 * 1024));
+    }
+    out["running_vms"] = running;
+    out["running_memory_mb"] = running_memory_mb;
+    out["free_ram_mb"] = free_ram_mb;
+    out["max_running_vms"] = cfg_.max_running_vms;
+    checks.emplace_back("running managed VMs within budget", running <= cfg_.max_running_vms);
     checks.emplace_back("no file-backed virtual disks attached to the host",
                         out["attached_vhds"].items().empty());
 

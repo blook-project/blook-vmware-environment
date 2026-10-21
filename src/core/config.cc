@@ -105,6 +105,7 @@ Config Config::load() {
     cfg.default_memory_mb = parse_int(env_or("BVMENV_MEMORY_MB", ""), cfg.default_memory_mb);
     cfg.default_timeout_s = parse_int(env_or("BVMENV_TIMEOUT", ""), cfg.default_timeout_s);
     cfg.hang_samples = parse_int(env_or("BVMENV_HANG_SAMPLES", ""), cfg.hang_samples);
+    cfg.max_running_vms = parse_int(env_or("BVMENV_MAX_RUNNING_VMS", ""), cfg.max_running_vms);
     cfg.command_timeout_ms = parse_int(env_or("BVMENV_CMD_TIMEOUT_MS", ""), cfg.command_timeout_ms);
     return cfg;
 }

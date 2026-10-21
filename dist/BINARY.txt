@@ -1,1 +1,1 @@
-latest stable build: bvmenv-a194b97.exe (git a194b97, 2026-10-21T15:15:22, version 0.1.5)
+latest stable build: bvmenv-6b5c7cd.exe (git 6b5c7cd, 2026-10-21T15:36:00, version 0.1.6)

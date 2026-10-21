@@ -218,7 +218,32 @@ std::vector<VmInfo> Vmware::list() const {
 // ---------------------------------------------------------------------------
 // lifecycle
 // ---------------------------------------------------------------------------
+int Vmware::running_managed_count() const {
+    int running = 0;
+    for (const auto& vm : list()) {
+        if (vm.power == PowerState::On)
+            ++running;
+    }
+    return running;
+}
+
 void Vmware::start(const std::string& name, bool gui) {
+    // Budget guard: the host has frozen twice under many concurrent guests.
+    if (!allow_many_ && power_state(name) != PowerState::On) {
+        const int running = running_managed_count();
+        if (running >= cfg_.max_running_vms) {
+            std::string names;
+            for (const auto& vm : this->list()) {
+                if (vm.power != PowerState::On)
+                    continue;
+                names += (names.empty() ? "" : ", ") + vm.name;
+            }
+            throw Error("VM budget reached (" + std::to_string(running) + " of " +
+                        std::to_string(cfg_.max_running_vms) + " managed VMs running: " + names +
+                        "); stop one first (bvmenv stop <vm>) or pass --allow-many "
+                        "(BVMENV_MAX_RUNNING_VMS overrides the budget)");
+        }
+    }
     const ProcessResult r =
         vmrun({L"start", vmx_wide(name), gui ? L"gui" : L"nogui"}, std::chrono::seconds(180));
     if (r.exit_code != 0) {
@@ -531,9 +556,21 @@ ExecResult Vmware::run(const ExecRequest& request) {
     // Prefer the user session (HKCU, user profile), but never fail because the
     // guest sits at the logon/lock UI: fall back to a SYSTEM scheduled task.
     ExecResult primary = run_once(request, request.elevated);
+    auto sticky = [&](ExecResult r) {
+        // A command that consumed its whole budget is a timeout even when its
+        // exit-code artifact arrived late (the SYSTEM fallback keeps running
+        // after the client window closes).
+        constexpr auto kTimeoutGrace = std::chrono::milliseconds(1500);
+        const auto budget = std::chrono::duration_cast<std::chrono::milliseconds>(request.timeout);
+        if (request.timeout.count() > 0 && !r.timed_out && r.duration >= budget - kTimeoutGrace) {
+            r.timed_out = true;
+            r.exit_code = -1;
+        }
+        return r;
+    };
     const bool usable = primary.ran && !primary.timed_out && primary.exit_code >= 0;
     if (request.elevated || usable)
-        return primary;
+        return sticky(std::move(primary));
     ExecResult fallback = run_once(request, true);
     if (fallback.ran && !fallback.timed_out && fallback.exit_code >= 0) {
         fallback.error.clear();
@@ -541,8 +578,8 @@ ExecResult Vmware::run(const ExecRequest& request) {
     }
     // Report the primary failure unless the fallback did better.
     if (!fallback.error.empty() && primary.error.empty())
-        return fallback;
-    return primary;
+        return sticky(std::move(fallback));
+    return sticky(std::move(primary));
 }
 
 ExecResult Vmware::run_once(const ExecRequest& request, bool system) {

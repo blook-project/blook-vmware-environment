@@ -91,9 +91,12 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
 
     // Shared flag sets.
     const std::vector<std::string> boolean_flags = {
-        "json",    "verbose", "force", "elevated",  "hard",    "soft",       "no-start", "start",
-        "no-ocr",  "help",    "all",   "pristine",  "deep",    "no-capture", "gui",      "classify",
-        "kd-pipe", "launch",  "log",   "self-test", "no-wait", "reset",
+        "json",       "verbose",    "force",   "elevated", "hard",    "soft",
+        "no-start",   "start",      "no-ocr",  "help",     "all",     "pristine",
+        "deep",       "no-capture", "gui",     "classify", "kd-pipe", "launch",
+        "log",        "self-test",  "no-wait", "reset",
+
+        "allow-many",
     };
 
     if (command == "create") {
@@ -169,6 +172,10 @@ int main(int argc, char** argv) {
     Context context(config);
     context.json = wants_json(args);
     context.logger.configure(config.verbose, config.log_file);
+    for (const auto& arg : args) {
+        if (arg == "--allow-many")
+            context.vmware.set_allow_many(true);
+    }
 
     try {
         return dispatch(context, args);
