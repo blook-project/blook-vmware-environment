@@ -416,15 +416,21 @@ bool Vmware::guest_ping(const std::string& name, std::chrono::milliseconds timeo
     return r.exit_code == 0 && !r.timed_out;
 }
 
-void Vmware::guest_mkdirs(const std::string& vm, const std::string& guest_dir) {
+void Vmware::run_script(const std::string& vm, const std::string& script,
+                        std::chrono::milliseconds timeout) const {
     const ProcessResult r =
         vmrun({L"-gu", widen(cfg_.guest_user), L"-gp", widen(cfg_.guest_password),
-               L"runProgramInGuest", vmx_wide(vm), L"C:\\Windows\\System32\\cmd.exe", L"/c",
-               L"if not exist " + widen(guest_dir) + L" mkdir " + widen(guest_dir)},
-              std::chrono::seconds(60));
-    if (r.exit_code != 0) {
-        throw Error("failed to create guest directory " + guest_dir + ": " + trim(r.out + r.err));
+               L"runScriptInGuest", vmx_wide(vm), L"", widen(script)},
+              timeout);
+    if (r.exit_code != 0 || r.timed_out) {
+        throw Error(std::string("guest script failed") + (r.timed_out ? " (timeout)" : "") + ": " +
+                    tail_of(trim(r.out + r.err), 400));
     }
+}
+
+void Vmware::guest_mkdirs(const std::string& vm, const std::string& guest_dir) {
+    run_script(vm, "if not exist \"" + guest_dir + "\" mkdir \"" + guest_dir + "\"",
+               std::chrono::seconds(60));
 }
 
 void Vmware::copy_to_guest(const std::string& vm, const fs::path& local,
@@ -522,67 +528,91 @@ std::string Vmware::guest_capture(const std::string& vm, const std::string& comm
 }
 
 ExecResult Vmware::run(const ExecRequest& request) {
+    // Prefer the user session (HKCU, user profile), but never fail because the
+    // guest sits at the logon/lock UI: fall back to a SYSTEM scheduled task.
+    ExecResult primary = run_once(request, request.elevated);
+    const bool usable = primary.ran && !primary.timed_out && primary.exit_code >= 0;
+    if (request.elevated || usable)
+        return primary;
+    ExecResult fallback = run_once(request, true);
+    if (fallback.ran && !fallback.timed_out && fallback.exit_code >= 0) {
+        fallback.error.clear();
+        return fallback;
+    }
+    // Report the primary failure unless the fallback did better.
+    if (!fallback.error.empty() && primary.error.empty())
+        return fallback;
+    return primary;
+}
+
+ExecResult Vmware::run_once(const ExecRequest& request, bool system) {
     ExecResult result;
     result.run_id =
         request.run_id.empty() ? "run-" + std::to_string(GetTickCount64()) : request.run_id;
     const std::string guest_dir = "C:\\blook\\runs\\" + result.run_id;
     result.guest_dir = guest_dir;
-    const std::string job_file = guest_dir + "\\job.cmd";
     const std::string out_file = guest_dir + "\\stdout.txt";
     const std::string err_file = guest_dir + "\\stderr.txt";
     const std::string rc_file = guest_dir + "\\exit.txt";
+    const std::string job_guest = guest_dir + "\\job.cmd";
 
     const auto started = std::chrono::steady_clock::now();
     guest_mkdirs(request.vm, guest_dir);
 
-    // Job script: redirect inside the guest, record the exit code afterwards.
+    // The job runs from a batch file pushed into the guest: each line is
+    // expanded separately, so `%ERRORLEVEL%` is captured *after* the command
+    // ran. (A single `&`-joined line would expand before execution and leave
+    // the exit-code file empty.)
     std::string job;
     job += "@echo off\r\n";
-    job += "setlocal enableextensions\r\n";
+    // Delayed expansion: `!ERRORLEVEL!` is read when the line runs, which is
+    // the only reliable way to capture the code of the preceding command in a
+    // VIX-hosted batch (a plain `%ERRORLEVEL%` expands to nothing there).
+    job += "setlocal EnableDelayedExpansion\r\n";
     if (request.workdir && !request.workdir->empty()) {
-        job += "cd /d " + shell_quote(*request.workdir) + "\r\n";
+        job += "cd /d " + batch_quote(*request.workdir) + "\r\n";
     }
-    job += "call " + request.command_line + " 1>" + shell_quote(out_file) + " 2>" +
-           shell_quote(err_file) + "\r\n";
-    job += "echo %ERRORLEVEL%>" + shell_quote(rc_file) + "\r\n";
+    job += "call " + request.command_line + " 1>" + batch_quote(out_file) + " 2>" +
+           batch_quote(err_file) + "\r\n";
+    // A freshly spawned cmd.exe has no ERRORLEVEL variable yet, so reading it
+    // directly after the call writes an empty file. `set` first makes the value
+    // concrete and per-line expansion captures it.
+    job += "set BVMENV_RC=!ERRORLEVEL!\r\n";
+    job += "echo !BVMENV_RC!>" + batch_quote(rc_file) + "\r\n";
     job += "exit /b 0\r\n";
-
     const fs::path local_job = cfg_.cache_dir() / "runs" / result.run_id / "job.cmd";
     write_text(local_job, job);
-    copy_to_guest(request.vm, local_job, job_file);
+    copy_to_guest(request.vm, local_job, job_guest);
 
-    const std::wstring program = L"C:\\Windows\\System32\\cmd.exe";
-
-    if (!request.elevated) {
+    if (!system) {
+        // Direct call (not run_script) because a timeout is a *result* here, not
+        // an error: e2e has to classify it.
         const ProcessResult r =
             vmrun({L"-gu", widen(cfg_.guest_user), L"-gp", widen(cfg_.guest_password),
-                   L"runProgramInGuest", vmx_wide(request.vm), program, L"/c", widen(job_file)},
+                   L"runScriptInGuest", vmx_wide(request.vm), L"",
+                   widen("call " + batch_quote(job_guest))},
                   std::chrono::duration_cast<std::chrono::milliseconds>(request.timeout));
-        result.ran = r.started && !r.timed_out;
+        result.ran = r.started;
         result.timed_out = r.timed_out;
         if (!r.started)
             result.error = r.error;
+        if (!r.timed_out && r.exit_code != 0) {
+            result.error = tail_of(trim(r.out + r.err), 400);
+        }
     } else {
-        // Run through a SYSTEM scheduled task so the command gets a full token
-        // even when UAC is enabled in the guest.
+        // SYSTEM scheduled task: full token even when UAC is enabled.
         const std::string task = "bvmenv_" + result.run_id;
-        // schtasks quoting through cmd.exe is fragile: write a small helper
-        // script and run that instead.
-        const std::string helper_guest = guest_dir + "\\elevate.cmd";
         std::string helper;
         helper += "@echo off\r\n";
-        helper += "schtasks /create /tn " + task + " /tr \"cmd.exe /c \\\"" + job_file +
-                  "\\\"\" /sc once /st 00:00 /ru SYSTEM /rl HIGHEST /f >nul\r\n";
+        helper += "schtasks /create /tn " + task + " /tr \"cmd.exe /c " + job_guest +
+                  "\" /sc once /st 00:00 /ru SYSTEM /rl HIGHEST /f >nul\r\n";
         helper += "schtasks /run /tn " + task + " >nul\r\n";
-        helper += "exit /b 0\r\n";
         const fs::path local_helper = cfg_.cache_dir() / "runs" / result.run_id / "elevate.cmd";
         write_text(local_helper, helper);
+        const std::string helper_guest = guest_dir + "\\elevate.cmd";
         copy_to_guest(request.vm, local_helper, helper_guest);
-        vmrun({L"-gu", widen(cfg_.guest_user), L"-gp", widen(cfg_.guest_password),
-               L"runProgramInGuest", vmx_wide(request.vm), program, L"/c", widen(helper_guest)},
-              std::chrono::seconds(60));
+        run_script(request.vm, "call " + batch_quote(helper_guest), std::chrono::seconds(60));
 
-        // Poll the guest for the exit code file.
         const auto deadline = started + request.timeout;
         bool done = false;
         const fs::path local_rc = cfg_.cache_dir() / "runs" / result.run_id / "exit.txt";
@@ -602,11 +632,11 @@ ExecResult Vmware::run(const ExecRequest& request) {
         }
         result.ran = done;
         result.timed_out = !done;
-        // Best effort cleanup of the scheduled task.
-        vmrun({L"-gu", widen(cfg_.guest_user), L"-gp", widen(cfg_.guest_password),
-               L"runProgramInGuest", vmx_wide(request.vm), program, L"/c",
-               L"schtasks /delete /tn " + widen(task) + L" /f >nul 2>&1"},
-              std::chrono::seconds(30));
+        try {
+            run_script(request.vm, "schtasks /delete /tn " + task + " /f >nul 2>&1",
+                       std::chrono::seconds(30));
+        } catch (...) {
+        }
     }
 
     // Collect artifacts (also on timeout: partial output is valuable evidence).
@@ -626,18 +656,23 @@ ExecResult Vmware::run(const ExecRequest& request) {
         result.out = read_text(local_out);
     if (try_pull(err_file, local_err))
         result.err = read_text(local_err);
-    if (try_pull(rc_file, local_rc)) {
+    const bool have_rc = try_pull(rc_file, local_rc);
+    if (have_rc) {
         try {
             result.exit_code = std::stoi(trim(read_text(local_rc)));
         } catch (...) {
             result.exit_code = -1;
+            result.error = "guest wrote an unusable exit code: " + trim(read_text(local_rc));
+        }
+    } else if (!result.timed_out) {
+        result.exit_code = -1;
+        if (result.error.empty()) {
+            result.error = "guest did not report an exit code (job.cmd did not finish)";
         }
     }
 
     result.duration = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - started);
-    // Drop the local scratch copy of the job; the pulled artifacts are copied
-    // to the evidence location by the caller.
     std::error_code ec;
     fs::remove_all(cfg_.cache_dir() / "runs" / result.run_id, ec);
     return result;

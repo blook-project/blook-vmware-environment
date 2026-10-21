@@ -70,7 +70,12 @@ class Vmware {
     // caller when the guest is at a logon screen / BSOD / hung.
     bool guest_ping(const std::string& name,
                     std::chrono::milliseconds timeout = std::chrono::milliseconds(20000)) const;
+    // Guest execution. `run` tries the interactive (logged-in user) path first
+    // and automatically falls back to the SYSTEM scheduled-task path when the
+    // guest has no usable session (logon/lock UI), so kernel e2e never depends
+    // on auto-logon being picture perfect.
     ExecResult run(const ExecRequest& request);
+    ExecResult run_once(const ExecRequest& request, bool system);
     void copy_to_guest(const std::string& vm, const std::filesystem::path& local,
                        const std::string& guest_path);
     void copy_from_guest(const std::string& vm, const std::string& guest_path,
@@ -80,6 +85,12 @@ class Vmware {
                   const std::string& guest_dir);
     int pull_tree(const std::string& vm, const std::string& guest_dir,
                   const std::filesystem::path& local_dir);
+    // Runs a batch script inside the guest through VIX `runScriptInGuest`.
+    // This is the reliable guest execution primitive for this image: cmd.exe
+    // launched through runProgramInGuest exits 1 even for `exit 0`, while the
+    // script API works. Throws on failure/timeout.
+    void run_script(const std::string& vm, const std::string& script,
+                    std::chrono::milliseconds timeout = std::chrono::milliseconds(120000)) const;
     void guest_mkdirs(const std::string& vm, const std::string& guest_dir);
     // Runs a command and returns its stdout (used by base verify).
     std::string guest_capture(const std::string& vm, const std::string& command, bool* ok = nullptr,

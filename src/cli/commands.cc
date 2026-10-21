@@ -210,9 +210,25 @@ int cmd_start_stop(Context& ctx, const ParsedArgs& args, bool start) {
         return rc;
     const std::string name = args.positional[0];
     if (start) {
+        // Idempotent: starting an already-running VM must return immediately
+        // (a 120 s hang here was reported from a downstream preflight).
+        if (ctx.vmware.power_state(name) == PowerState::On) {
+            json::Value out(json::Object{});
+            out["schema"] = std::string("bvmenv.power.v1");
+            out["ok"] = true;
+            out["name"] = name;
+            out["action"] = std::string("start");
+            out["power"] = std::string("on");
+            out["already_running"] = true;
+            if (ctx.json)
+                std::printf("%s\n", out.dump(2).c_str());
+            else
+                std::printf("already running: %s\n", name.c_str());
+            return 0;
+        }
         ctx.vmware.start(name, args.has("gui"));
         if (!args.has("no-wait"))
-            ctx.lab.wait_ready(name, std::chrono::seconds(240));
+            ctx.lab.wait_ready(name, std::chrono::seconds(600));
     } else {
         ctx.vmware.stop(name, !args.has("soft"));
     }
@@ -346,7 +362,7 @@ int cmd_exec(Context& ctx, const ParsedArgs& args) {
         std::vector<std::string> cmd(args.positional.begin() + 1, args.positional.end());
         request.command_line = join(cmd, " ");
     }
-    if (request.command_line.empty()) {
+    if (request.command_line.empty() && !args.has("self-test")) {
         std::cerr << "bvmenv: exec requires a command (bvmenv exec <vm> -- <command>)\n";
         return 2;
     }
@@ -355,6 +371,61 @@ int cmd_exec(Context& ctx, const ParsedArgs& args) {
     request.elevated = args.has("elevated");
     if (args.has("workdir"))
         request.workdir = args.get("workdir");
+    if (args.has("self-test")) {
+        // Round trip every guest primitive separately so a failure names the
+        // broken step instead of a bare exit_code=-1.
+        json::Value steps(json::Array{});
+        auto record = [&](const char* step, bool ok, const std::string& detail) {
+            json::Value item(json::Object{});
+            item["step"] = std::string(step);
+            item["ok"] = ok;
+            item["detail"] = detail;
+            steps.push(std::move(item));
+            return ok;
+        };
+        bool ok = true;
+        try {
+            ctx.vmware.guest_mkdirs(request.vm, "C:\\blook\\selftest");
+            ok = record("mkdir", true, "C:\\blook\\selftest") && ok;
+        } catch (const std::exception& e) {
+            ok = record("mkdir", false, e.what()) && ok;
+        }
+        try {
+            const fs::path probe = ctx.config.cache_dir() / "selftest.txt";
+            write_text(probe, "bvmenv-self-test\r\n");
+            ctx.vmware.copy_to_guest(request.vm, probe, "C:\\blook\\selftest\\probe.txt");
+            ok = record("copy_to_guest", true, "probe.txt") && ok;
+        } catch (const std::exception& e) {
+            ok = record("copy_to_guest", false, e.what()) && ok;
+        }
+        ExecRequest probe = request;
+        probe.command_line = "cmd /c \"echo BVMENV-SELFTEST & exit /b 7\"";
+        probe.timeout = std::chrono::seconds(60);
+        const ExecResult probe_result = ctx.lab.exec(probe);
+        ok = record("run", probe_result.ran && !probe_result.timed_out,
+                    probe_result.error.empty() ? "ok" : probe_result.error) &&
+             ok;
+        ok = record("stdout", probe_result.out.find("BVMENV-SELFTEST") != std::string::npos,
+                    trim(probe_result.out).substr(0, 120)) &&
+             ok;
+        ok = record("exit_code", probe_result.exit_code == 7,
+                    "exit_code=" + std::to_string(probe_result.exit_code)) &&
+             ok;
+        ExecRequest sleeper = request;
+        sleeper.command_line = "cmd /c \"ping -n 10 127.0.0.1\"";
+        sleeper.timeout = std::chrono::seconds(3);
+        const ExecResult timeout_result = ctx.lab.exec(sleeper);
+        ok = record("timeout", timeout_result.timed_out,
+                    "timed_out=" + std::string(timeout_result.timed_out ? "true" : "false")) &&
+             ok;
+        json::Value out(json::Object{});
+        out["schema"] = std::string("bvmenv.exec-selftest.v1");
+        out["vm"] = request.vm;
+        out["ok"] = ok;
+        out["steps"] = std::move(steps);
+        std::printf("%s\n", out.dump(2).c_str());
+        return ok ? 0 : 1;
+    }
     const ExecResult result = ctx.lab.exec(request);
     print_exec(result, ctx.json);
     if (!result.ran || result.timed_out)

@@ -159,6 +159,18 @@ std::string shell_quote(std::string_view s) {
     return out;
 }
 
+std::string batch_quote(std::string_view s) {
+    std::string out = "\"";
+    for (const char c : s) {
+        if (c == '"')
+            out += "\"\"";
+        else
+            out.push_back(c);
+    }
+    out += '"';
+    return out;
+}
+
 std::string tail_of(const std::string& s, std::size_t max_bytes) {
     if (s.size() <= max_bytes)
         return s;

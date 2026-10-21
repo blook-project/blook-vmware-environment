@@ -54,7 +54,7 @@ option("static_runtime")
 
 -- Shared host-side settings. xmake's add_*/set_* act on the enclosing target,
 -- so this must be called from inside a target scope.
-function host_common()
+function host_common(allow_static_runtime)
     set_encodings("utf-8")
     add_defines("UNICODE", "_UNICODE", "NOMINMAX", "WIN32_LEAN_AND_MEAN", "_CRT_SECURE_NO_WARNINGS")
     add_defines('BVMENV_VERSION="' .. project_version .. '"')
@@ -62,7 +62,7 @@ function host_common()
     add_cxxflags("/utf-8", "/W4", "/permissive-", "/Zc:__cplusplus", "/WX", {tools = "cl"})
     add_syslinks("advapi32", "ole32", "oleaut32", "windowscodecs", "shell32",
                  "user32", "gdi32", "version", "bcrypt", "shlwapi")
-    if has_config("static_runtime") then
+    if allow_static_runtime ~= false and has_config("static_runtime") then
         set_runtimes("MT")
     end
 end

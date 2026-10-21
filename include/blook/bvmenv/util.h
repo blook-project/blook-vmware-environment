@@ -38,7 +38,10 @@ bool contains_ci(std::string_view s, std::string_view needle);
 std::vector<std::string> split_ws(std::string_view s);
 std::string join(const std::vector<std::string>& parts, std::string_view sep);
 std::string replace_all(std::string s, std::string_view from, std::string_view to);
-std::string shell_quote(std::string_view s);  // cmd.exe argument quoting
+std::string shell_quote(std::string_view s);  // cmd.exe *argument* quoting
+// Quotes a path for a *batch file*: no backslash escaping (cmd does not
+// interpret \" as an escape sequence, so shell_quote corrupts batch syntax).
+std::string batch_quote(std::string_view s);
 std::string tail_of(const std::string& s, std::size_t max_bytes);
 
 // Encode a string for inclusion in JSON with ASCII-only output.
