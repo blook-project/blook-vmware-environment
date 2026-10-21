@@ -4,6 +4,20 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-10-21
+
+### Added
+
+- `bvmenv kd-pipe <vm> [--off]` converts an *existing* fork (no re-clone) to
+  named-pipe KD: it rewrites `serial0` to `\\.\pipe\blook-<vm>-kd` with VMware as
+  the server (or back to `serial.log`), refuses to touch a running VM, and prints
+  the exact `kd.exe -k com:pipe,port=...,resets=0,reconnect` command line.
+  Verified on a fork created without `--kd-pipe`: `kd-pipe` → `start` →
+  `kd-log --reset` reports `connected: true` and captures
+  `Connected to Windows 10 26100 x64 target` + `Kernel base = ...`, and the guest
+  still answers `exec` afterwards.
+- Pipe naming rule documented in the README: `\\.\pipe\blook-<vm>-kd`.
+
 ## [0.1.3] - 2026-10-21
 
 ### Fixed

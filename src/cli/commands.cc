@@ -11,6 +11,7 @@
 
 #include "blook/bvmenv/classify.h"
 #include "blook/bvmenv/process.h"
+#include "blook/bvmenv/vmx.h"
 #include "blook/bvmenv/util.h"
 #include "cli.h"
 
@@ -726,6 +727,62 @@ void write_stdin(HANDLE in, const std::string& text) {
 }
 
 }  // namespace
+
+int cmd_kd_pipe(Context& ctx, const ParsedArgs& args) {
+    // Convert an EXISTING fork to (or from) named-pipe KD without recreating it.
+    // Owners already have forks created without --kd-pipe; this rewrites serial0
+    // in their vmx so `start` + `kd-log` work immediately.
+    if (args.positional.empty()) {
+        std::cerr << "bvmenv: kd-pipe requires a VM name\n";
+        return 2;
+    }
+    const std::string name = args.positional[0];
+    const auto info = ctx.vmware.find(name);
+    if (!info) {
+        std::cerr << "bvmenv: no such VM: " << name << "\n";
+        return 2;
+    }
+    if (info->power != PowerState::Off) {
+        std::cerr << "bvmenv: stop the VM first (kd-pipe rewrites its .vmx)\n";
+        return 2;
+    }
+    const bool enable = !args.has("off");
+    Vmx vmx = Vmx::load(fs::path(to_wide(info->vmx)));
+    if (enable) {
+        vmx.set("serial0.present", "TRUE");
+        vmx.set("serial0.fileType", "pipe");
+        vmx.set("serial0.fileName", kd_pipe_name(name));
+        vmx.set("serial0.pipe.endPoint", "server");
+        vmx.remove("serial0.tryNoRxLoss");
+        vmx.remove("serial0.yieldOnMsrRead");
+    } else {
+        vmx.set("serial0.present", "TRUE");
+        vmx.set("serial0.fileType", "file");
+        vmx.set("serial0.fileName", "serial.log");
+        vmx.remove("serial0.pipe.endPoint");
+    }
+    vmx.save(fs::path(to_wide(info->vmx)));
+
+    const fs::path kd = find_kd();
+    json::Value out(json::Object{});
+    out["schema"] = std::string("bvmenv.kd-pipe.v1");
+    out["vm"] = name;
+    out["enabled"] = enable;
+    out["pipe"] = enable ? kd_pipe_name(name) : std::string{};
+    if (!kd.empty())
+        out["command"] = enable ? kd_command_line(kd, kd_pipe_name(name)) : std::string{};
+    if (ctx.json) {
+        std::printf("%s\n", out.dump(2).c_str());
+    } else if (enable) {
+        std::printf(
+            "kd-pipe enabled for %s\n  pipe: %s\n  kd: %s\n", name.c_str(),
+            kd_pipe_name(name).c_str(),
+            kd.empty() ? "(kd.exe not found)" : kd_command_line(kd, kd_pipe_name(name)).c_str());
+    } else {
+        std::printf("kd-pipe disabled for %s (serial0 -> serial.log)\n", name.c_str());
+    }
+    return 0;
+}
 
 int cmd_kd(Context& ctx, const ParsedArgs& args) {
     if (args.positional.empty()) {

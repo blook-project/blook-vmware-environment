@@ -137,6 +137,17 @@ file — the only practical way to read `DbgPrint` output, because without a
 debugger the serial log is KD packet noise. The base image already has
 `debug on` + `dbgsettings serial debugport:1 baudrate:115200`.
 
+Forks created *before* `--kd-pipe` can be converted in place (no re-clone); the
+VM must be powered off:
+
+```powershell
+bvmenv kd-pipe vm-drv          # serial0 -> \\.\pipe\blook-vm-drv-kd (VMware = server)
+bvmenv kd-pipe vm-drv --off    # back to serial.log
+```
+
+Pipe naming rule: `\\.\pipe\blook-<vm>-kd` (one pipe per VM; VMware is the
+server, kd the client). `kd-pipe` prints the exact kd command line.
+
 KD must be attached **before** the guest initialises its debug transport, so use
 `kd-log --reset` (starts kd, then resets the VM) or start kd first and boot
 afterwards; attaching to an already-booted guest only reports `[no_debuggee]`.

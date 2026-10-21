@@ -128,6 +128,8 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
     }
     if (command == "key" || command == "keys")
         return cmd_key(ctx, parse_args(rest, boolean_flags));
+    if (command == "kd-pipe")
+        return cmd_kd_pipe(ctx, parse_args(rest, boolean_flags));
     if (command == "kd" || command == "kd-log") {
         ParsedArgs kd_args = parse_args(rest, boolean_flags);
         if (command == "kd-log")
