@@ -38,6 +38,9 @@ struct CreateOptions {
     // (`bvmenv kd <vm>` prints the exact command line).
     bool kd_pipe = false;
     // Pin vCPUs to P-cores (hybrid CPUs: nested VMX on E-cores wedges).
+    // Plain named-pipe serial (host is the pipe server, VMware the client);
+    // the file backend is inert on this Workstation build.
+    bool serial_pipe = false;
     bool pin_pcores = false;
     std::string pcore_list;  // e.g. "0-15"; empty = the 12900KS default
     bool start = true;

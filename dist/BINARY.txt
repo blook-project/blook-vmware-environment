@@ -1,1 +1,1 @@
-known-good: bvmenv-b5095ef.exe (git b5095ef, version 0.2.0). Do NOT use 0.1.9-0.1.11. KD opt-in (--unsafe-kd). Lab image: testsigning on.
+known-good: bvmenv-2ee4a8b.exe (git 2ee4a8b, version 0.2.1). Do NOT use 0.1.9-0.1.11. KD opt-in (--unsafe-kd). Lab image: testsigning on, lab-signed drivers.

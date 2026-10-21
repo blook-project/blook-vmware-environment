@@ -1,0 +1,59 @@
+
+
+Verifying: C:\blook-vms\_spc-drivers\guest-bsod-driver.sys
+
+
+Signature Index: 0 (Primary Signature)
+Hash of file (sha1): 7956510A6002693D24B09EB13976BF92D87D88EB
+
+Signing Certificate Chain:
+    Issued to: VeriSign Class 3 Public Primary Certification Authority - G5
+
+    Issued by: VeriSign Class 3 Public Primary Certification Authority - G5
+
+    Expires:   Thu Jul 17 07:59:59 2036
+
+    SHA1 hash: 4EB6D578499B1CCF5F581EAD56BE3D9B6744A5E5
+
+
+        Issued to: VeriSign Class 3 Code Signing 2010 CA
+
+        Issued by: VeriSign Class 3 Public Primary Certification Authority - G5
+
+        Expires:   Sat Feb 08 07:59:59 2020
+
+        SHA1 hash: 495847A93187CFB8C71F840CB7B41497AD95C64F
+
+
+            Issued to: BEIJING XINDA HUANYU NETWORK SECURITY TECHNOLOGY CO.,LTD
+
+            Issued by: VeriSign Class 3 Code Signing 2010 CA
+
+            Expires:   Thu Jul 18 07:59:59 2013
+
+            SHA1 hash: 87D60F58BCA95BCBFB4BF08B709A697EA70B5D24
+
+
+The signature is timestamped: Tue Jan 01 08:00:00 2013
+
+Timestamp Verified by:
+    Issued to: Blook Local TSA Root
+
+    Issued by: Blook Local TSA Root
+
+    Expires:   Fri Jan 01 07:59:59 2100
+
+    SHA1 hash: 2CF499850E6AC1D98D1CFCF0B5A0FA94C16E2546
+
+
+        Issued to: Blook Local TSA
+
+        Issued by: Blook Local TSA Root
+
+        Expires:   Fri Jan 01 07:59:59 2100
+
+        SHA1 hash: 3296791A2E311B353B1D21AD5DA29B6C6A8FD451
+
+
+Cross Certificate Chain:
+    Issued to: Microsoft Code Verification Root

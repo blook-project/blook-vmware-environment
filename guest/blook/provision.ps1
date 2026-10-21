@@ -189,7 +189,7 @@ if (-not (Test-Path -LiteralPath $phase1Marker)) {
     Invoke-Step 'test signing + kernel debug' {
         $out = & bcdedit.exe /set '{current}' testsigning off 2>&1
         Log ('testsigning off (DSE on): ' + ($out -join ' '))
-        & bcdedit.exe /set '{current}' nointegritychecks on 2>&1 | ForEach-Object { Log ('nointegritychecks: ' + $_) }
+        & bcdedit.exe /set '{current}' nointegritychecks off 2>&1 | ForEach-Object { Log ('nointegritychecks off: ' + $_) }
         & bcdedit.exe /set '{current}' debug on 2>&1 | ForEach-Object { Log ('debug: ' + $_) }
         & bcdedit.exe /dbgsettings serial debugport:1 baudrate:115200 2>&1 | ForEach-Object { Log ('dbgsettings: ' + $_) }
         & bcdedit.exe /set '{current}' bootstatuspolicy ignoreallfailures 2>&1 | ForEach-Object { Log ('bootstatuspolicy: ' + $_) }
@@ -452,6 +452,7 @@ if (-not (Test-Path -LiteralPath $phase2Marker)) {
     $certDir = 'C:\blook\certs'
     $trustPlan = @(
         @{ Store = 'Root'; File = 'tsa-root.cer' },
+        @{ Store = 'TrustedPublisher'; File = 'tsa-leaf.cer' },
         @{ Store = 'CA'; File = 'verisign-cscs-2010.cer' },
         @{ Store = 'CA'; File = 'verisign-g5-mcvr.cer' }
     )

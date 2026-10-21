@@ -1,0 +1,7 @@
+exit_code    : 0
+nointegritychecks       Yes
+
+testsigning             No
+
+debug                   Yes
+

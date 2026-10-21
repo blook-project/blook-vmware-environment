@@ -1,0 +1,40 @@
+exit_code    : 1
+--- stderr ---
+����λ�� ��:1 �ַ�: 8
+
++ 'root:': ' + ((Get-ChildItem Cert:\LocalMachine\Root | Where-Object { ...
+
++        ~
+
+����ʽ������а�������ı�ǡ�:����
+
+����λ�� ��:1 �ַ�: 204
+
++ ... calMachine\CA | Where-Object { $_.Subject -match ''VeriSign'' }).Coun ...
+
++                                                        ~~~~~~~~~~
+
+����ʽ������а�������ı�ǡ�VeriSign''����
+
+����λ�� ��:1 �ַ�: 238
+
++ ... ect { $_.Subject -match ''VeriSign'' }).Count); 'publisher:': ' + ((G ...
+
++                                                                 ~
+
+����ʽ������а�������ı�ǡ�:����
+
+����λ�� ��:1 �ַ�: 240
+
++ ... ublisher:': ' + ((Get-ChildItem Cert:\LocalMachine\TrustedPublisher | ...
+
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+�ַ���ȱ����ֹ��: '��
+
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+
+    + FullyQualifiedErrorId : UnexpectedToken
+
+ 
+

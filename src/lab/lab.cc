@@ -150,14 +150,20 @@ VmInfo Lab::create(const CreateOptions& options) {
     vmx.remove("ethernet0.address");
     vmx.remove("ethernet0.generatedAddress");
     vmx.remove("ethernet0.generatedAddressOffset");
-    if (options.pin_pcores) {
-        // Hybrid CPU (i9-12900KS: P-cores = logical 0-15, E-cores = 16-23).
-        // Pinning vCPUs to P-cores keeps nested VMX away from E-cores, where the
-        // silent VMLAUNCH wedge has been observed.
-        const std::string cpus = options.pcore_list.empty() ? "0-15" : options.pcore_list;
-        vmx.set("sched.cpu.affinity", cpus);
-    }
-    if (options.kd_pipe) {
+    // NOTE: sched.cpu.affinity in the .vmx prevents power-on on this
+    // Workstation build; P-core pinning happens at runtime instead
+    // (`bvmenv pin-vcpu`, called by `create --pin-pcores`).
+    if (options.serial_pipe) {
+        // Host-side reader is the pipe SERVER (`bvmenv serial-log <vm>`), VMware
+        // connects as the client, so guest COM1 bytes are captured verbatim with
+        // no kd in the loop.
+        vmx.set("serial0.present", "TRUE");
+        vmx.set("serial0.fileType", "pipe");
+        vmx.set("serial0.fileName", "\\\\.\\pipe\\blook-" + options.name + "-serial");
+        vmx.set("serial0.pipe.endPoint", "client");
+        vmx.remove("serial0.tryNoRxLoss");
+        vmx.remove("serial0.yieldOnMsrRead");
+    } else if (options.kd_pipe) {
         // Named pipe KD: VMware is the pipe CLIENT and kd.exe creates the server
         // (client mode). With VMware as the server an absent/slow client can
         // block a vCPU - that correlates with the host freezes of 2026-10-21.

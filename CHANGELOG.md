@@ -4,6 +4,26 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] - 2026-10-21
+
+### Added
+
+- `bvmenv pin-vcpu <vm> [--pcores "0-15"]` - pins a running fork's `vmware-vmx`
+  to the P-cores at runtime (`SetProcessAffinityMask`, elevated retry through
+  `gsudo`). `sched.cpu.affinity` in the .vmx is gone: it prevents power-on on this
+  Workstation build. Verified: `mask_requested=0x0000FFFF`, `applied=true`,
+  `matches=true` on four vmware-vmx processes.
+- `bvmenv serial-log <vm> --seconds N --out f` + `create --serial-pipe` - the host
+  is a plain named-pipe **server** (`\\.\pipe\blook-<vm>-serial`) and VMware
+  connects as the client, so guest COM1 bytes are copied verbatim to a file. No
+  kd, no break-in, no packet handling - safe for a stalled guest. (The file
+  backend stays inert on Workstation 25, see `serial-probe`.)
+- `bvmenv dump pull <vm> [--out f]` - copies `C:\Windows\MEMORY.DMP` off the
+  guest for offline `kd -z` analysis, so a stall can be diagnosed from a forced
+  bugcheck without attaching kd to the VM.
+- Provisioning sets a deterministic kernel dump
+  (`CrashDumpEnabled=1`, `DumpFile=C:\Windows\MEMORY.DMP`, `Overwrite=1`).
+
 ## [0.2.1] - 2026-10-21
 
 ### Changed

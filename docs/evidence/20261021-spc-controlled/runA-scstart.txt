@@ -1,0 +1,1 @@
+bvmenv: error: copy to guest failed (C:\blook-vms\_cache\runs\run-11464515\job.cmd -> C:\blook\runs\run-11464515\job.cmd): 

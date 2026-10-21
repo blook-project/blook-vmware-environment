@@ -2,6 +2,7 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <fstream>
 #include <thread>
 #include <cstdio>
 #include <cstdlib>
@@ -184,6 +185,32 @@ int cmd_base(Context& ctx, const std::vector<std::string>& argv, bool verify_onl
     return 0;
 }
 
+namespace {
+int run_pin_vcpu(Context& ctx, const std::string& vm, const std::string& pcores);
+fs::path find_repo_script(const char* name);
+}  // namespace
+
+namespace {
+
+// Locate a script shipped with the repository (walk up from the executable).
+fs::path find_repo_script(const char* name) {
+    wchar_t buffer[1024];
+    const DWORD len = GetModuleFileNameW(nullptr, buffer, static_cast<DWORD>(std::size(buffer)));
+    if (len == 0)
+        return {};
+    std::error_code ec;
+    fs::path dir = fs::path(buffer).parent_path();
+    for (int depth = 0; depth < 6 && !dir.empty(); ++depth) {
+        const fs::path candidate = dir / "scripts" / name;
+        if (fs::exists(candidate, ec))
+            return candidate;
+        dir = dir.parent_path();
+    }
+    return {};
+}
+
+}  // namespace
+
 int cmd_create(Context& ctx, const ParsedArgs& args) {
     if (const int rc = require_name(args, "create"); rc)
         return rc;
@@ -197,6 +224,7 @@ int cmd_create(Context& ctx, const ParsedArgs& args) {
     if (args.has("from"))
         options.from = args.get("from");
     options.kd_pipe = args.has("kd-pipe");
+    options.serial_pipe = args.has("serial-pipe");
     options.pin_pcores = args.has("pin-pcores");
     options.pcore_list = args.get("pcores");
     if (options.kd_pipe && !args.has("unsafe-kd")) {
@@ -211,6 +239,9 @@ int cmd_create(Context& ctx, const ParsedArgs& args) {
     }
     const auto started = std::chrono::steady_clock::now();
     const VmInfo info = ctx.lab.create(options);
+    if (options.pin_pcores && options.start) {
+        run_pin_vcpu(ctx, options.name, options.pcore_list.empty() ? "0-15" : options.pcore_list);
+    }
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - started);
     json::Value out(json::Object{});
@@ -792,6 +823,114 @@ void write_stdin(HANDLE in, const std::string& text) {
 
 }  // namespace
 
+int cmd_dump_pull(Context& ctx, const ParsedArgs& args) {
+    // Fetch the kernel dump a stalled/bugchecked guest left behind, so it can be
+    // analysed offline with `kd -z` instead of attaching kd to the VM (kd pipes
+    // correlate with the host freezes on this box).
+    if (const int rc = require_name(args, "dump"))
+        return rc;
+    const std::string name = args.positional[0];
+    const fs::path out = args.has("out") ? fs::path(to_wide(args.get("out")))
+                                         : (ctx.config.evidence_dir() / "dumps" / (name + ".dmp"));
+    ensure_dir(out.parent_path());
+    std::vector<std::string> candidates = {"C:\\Windows\\MEMORY.DMP"};
+    // Kernel dump only: that is what `kd -z` needs for a stalled guest.
+    std::string pulled;
+    for (const auto& candidate : candidates) {
+        try {
+            ctx.vmware.copy_from_guest(name, candidate, out);
+            pulled = candidate;
+            break;
+        } catch (const std::exception&) {
+        }
+    }
+    json::Value result(json::Object{});
+    result["schema"] = std::string("bvmenv.dump-pull.v1");
+    result["vm"] = name;
+    result["source"] = pulled;
+    result["path"] = pulled.empty() ? std::string{} : to_utf8(out.wstring());
+    if (!pulled.empty() && fs::exists(out)) {
+        result["bytes"] = static_cast<long long>(fs::file_size(out));
+        result["ok"] = true;
+    } else {
+        result["bytes"] = 0;
+        result["ok"] = false;
+    }
+    if (ctx.json) {
+        std::printf("%s\n", result.dump(2).c_str());
+    } else if (pulled.empty()) {
+        std::printf("no dump found (enable CrashDumpEnabled=1 and bugcheck the guest)\n");
+    } else {
+        std::printf("pulled %s -> %s (%lld bytes)\n", pulled.c_str(),
+                    to_utf8(out.wstring()).c_str(), result["bytes"].as_int());
+    }
+    return result["ok"].as_bool() ? 0 : 1;
+}
+
+int cmd_serial_log(Context& ctx, const ParsedArgs& args) {
+    // Host-side pipe SERVER for a fork created with --serial-pipe: whatever the
+    // guest writes to COM1 is copied verbatim into a file. No kd, no break-in,
+    // no packet handling - safe for a stalled guest.
+    if (const int rc = require_name(args, "serial-log"))
+        return rc;
+    const std::string name = args.positional[0];
+    const int seconds = static_cast<int>(parse_ll(args.get("seconds"), 60));
+    const fs::path out = args.has("out")
+                             ? fs::path(to_wide(args.get("out")))
+                             : (ctx.config.evidence_dir() / "serial" / (name + "-serial.log"));
+    ensure_dir(out.parent_path());
+    const std::wstring pipe_name = L"\\\\.\\pipe\\blook-" + to_wide(name) + L"-serial";
+    HANDLE pipe = CreateNamedPipeW(pipe_name.c_str(), PIPE_ACCESS_INBOUND,
+                                   PIPE_TYPE_BYTE | PIPE_WAIT, 1, 64 * 1024, 64 * 1024, 0, nullptr);
+    if (pipe == INVALID_HANDLE_VALUE) {
+        std::cerr << "bvmenv: CreateNamedPipe failed (" << GetLastError() << ")\n";
+        return 2;
+    }
+    std::ofstream file(out, std::ios::binary);
+    if (!file) {
+        CloseHandle(pipe);
+        std::cerr << "bvmenv: cannot write " << to_utf8(out.wstring()) << "\n";
+        return 2;
+    }
+    std::atomic<bool> stop{false};
+    std::atomic<long long> written{0};
+    std::thread reader([&] {
+        if (!ConnectNamedPipe(pipe, nullptr) && GetLastError() != ERROR_PIPE_CONNECTED)
+            return;
+        char buffer[8192];
+        DWORD read = 0;
+        while (!stop.load() && ReadFile(pipe, buffer, sizeof(buffer), &read, nullptr) && read > 0) {
+            file.write(buffer, read);
+            file.flush();
+            written.fetch_add(read);
+        }
+    });
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
+    while (std::chrono::steady_clock::now() < deadline)
+        sleep_ms(200);
+    stop = true;
+    CancelIoEx(pipe, nullptr);
+    DisconnectNamedPipe(pipe);
+    CloseHandle(pipe);
+    reader.join();
+    file.close();
+    json::Value result(json::Object{});
+    result["schema"] = std::string("bvmenv.serial-log.v1");
+    result["vm"] = name;
+    result["pipe"] = to_utf8(pipe_name);
+    result["path"] = to_utf8(out.wstring());
+    result["seconds"] = seconds;
+    result["bytes"] = written.load();
+    result["ok"] = written.load() > 0;
+    if (ctx.json) {
+        std::printf("%s\n", result.dump(2).c_str());
+    } else {
+        std::printf("serial-log %s: %lld bytes -> %s\n", written.load() > 0 ? "ok" : "EMPTY",
+                    written.load(), to_utf8(out.wstring()).c_str());
+    }
+    return written.load() > 0 ? 0 : 1;
+}
+
 int cmd_serial_probe(Context& ctx, const ParsedArgs& args) {
     // Assert that the fork's file-backed COM1 actually works: write a known
     // marker to COM1 inside the guest and require the host-side serial.log to
@@ -843,6 +982,42 @@ int cmd_serial_probe(Context& ctx, const ParsedArgs& args) {
                     tail.find(marker) != std::string::npos ? "true" : "false");
     }
     return (grew && guest_ok) ? 0 : 1;
+}
+
+namespace {
+
+// Runtime CPU pinning for a fork: sched.cpu.affinity in the .vmx prevents
+// power-on on this Workstation build, so the mask is applied to the running
+// vmware-vmx process (scripts/pin-vcpu.ps1 finds it, retries while it boots,
+// retries elevated through gsudo when needed, and verifies the mask).
+int run_pin_vcpu(Context& ctx, const std::string& vm, const std::string& pcores) {
+    const auto info = ctx.vmware.find(vm);
+    if (!info) {
+        std::cerr << "bvmenv: no such VM: " << vm << "\n";
+        return 2;
+    }
+    const fs::path script = find_repo_script("pin-vcpu.ps1");
+    if (script.empty()) {
+        std::cerr << "bvmenv: scripts/pin-vcpu.ps1 not found\n";
+        return 2;
+    }
+    ProcessOptions options;
+    options.command_line = L"powershell -NoProfile -ExecutionPolicy Bypass -File " +
+                           script.wstring() + L" -Vmx " + to_wide(info->vmx) + L" -Pcores " +
+                           to_wide(pcores);
+    options.timeout = std::chrono::seconds(120);
+    const ProcessResult result = run_process(options);
+    std::printf("%s\n", trim(result.out + result.err).c_str());
+    return result.exit_code == 0 ? 0 : 1;
+}
+
+}  // namespace
+
+int cmd_pin_vcpu(Context& ctx, const ParsedArgs& args) {
+    if (const int rc = require_name(args, "pin-vcpu"))
+        return rc;
+    const std::string pcores = args.get("pcores", "0-15");
+    return run_pin_vcpu(ctx, args.positional[0], pcores);
 }
 
 int cmd_testsigning(Context& ctx, const ParsedArgs& args) {
@@ -1219,7 +1394,10 @@ End-to-end runner (used by downstream projects, contract in docs/e2e.md)
              [--out <dir>] [--reset-on failure|always|never] [--wait-timeout N]
 
 Diagnostics
+  pin-vcpu <vm> [--pcores "0-15"]     pin a running fork to P-cores
   testsigning <vm> on|off [--reboot]   toggle DSE on a fork (lab images run testsigning on)
+  dump pull <vm> [--out f]              fetch MEMORY.DMP / newest minidump for kd -z
+  serial-log <vm> [--seconds N] [--out f]  pipe-server serial capture (--serial-pipe forks)
   serial-probe <vm>                    assert the fork's file-backed COM1 works
   doctor [--json]    host-prep [--json]    selftest [--json]    version
 
