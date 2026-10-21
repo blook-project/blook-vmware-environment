@@ -73,15 +73,21 @@ fs::path exe_dir() {
 }  // namespace
 
 fs::path default_guest_assets() {
-    const fs::path dir = exe_dir();
-    for (const fs::path& candidate :
-         {dir / L"guest", dir / L".." / L"guest", dir / L".." / L".." / L"guest"}) {
-        std::error_code ec;
+    // The payload lives next to the sources while the binary lives in the build
+    // tree (build/windows/<arch>/<mode>/bvmenv.exe) or in a release package
+    // (bin/x64/bvmenv.exe + guest/). Walk up until a guest payload is found.
+    std::error_code ec;
+    fs::path dir = exe_dir();
+    for (int level = 0; level < 8; ++level) {
+        const fs::path candidate = dir / L"guest";
         if (fs::exists(candidate / L"unattend.xml", ec)) {
             return fs::weakly_canonical(candidate, ec);
         }
+        if (!dir.has_parent_path() || dir.parent_path() == dir)
+            break;
+        dir = dir.parent_path();
     }
-    return dir / L"guest";
+    return exe_dir() / L"guest";
 }
 
 Config Config::load() {
