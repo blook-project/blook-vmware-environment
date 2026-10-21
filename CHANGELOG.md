@@ -4,6 +4,20 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.12] - 2026-10-21
+
+### Fixed
+
+- **Regression in 0.1.9–0.1.11: `exec`/`e2e`/`wait-ready` crashed with a stack
+  overflow.** `guest_mkdirs` was routed through `run()` (added in 0.1.9 to make
+  bundle staging work without a user session), but `run_once()` calls
+  `guest_mkdirs()` to create its own job directory - so every guest operation
+  recursed until the stack overflowed (`0xC00000FD`). `guest_mkdirs` is back on
+  the plain script path; the push-at-the-logon-UI limitation is therefore still
+  open (documented in docs/e2e.md) and will be solved without recursion.
+
+  **Use 0.1.8 or 0.1.12; do not use 0.1.9–0.1.11 for guest operations.**
+
 ## [0.1.11] - 2026-10-21
 
 ### Added

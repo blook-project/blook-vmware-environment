@@ -1,0 +1,44 @@
+{
+  "vm": "vm-e2ev",
+  "started_at": "2026-10-21T09:05:00.7536523Z",
+  "all_ok": false,
+  "cases": [
+    {
+      "case": "timeout",
+      "expected_outcome": "timeout",
+      "actual_outcome": null,
+      "timed_out": null,
+      "stop_code": null,
+      "classification": null,
+      "reset_performed": null,
+      "reset_strategy": null,
+      "artifact_dir": null,
+      "ok": false
+    },
+    {
+      "case": "bsod",
+      "expected_outcome": "bsod",
+      "actual_outcome": null,
+      "timed_out": null,
+      "stop_code": null,
+      "classification": null,
+      "reset_performed": null,
+      "reset_strategy": null,
+      "artifact_dir": null,
+      "ok": false
+    },
+    {
+      "case": "hang",
+      "expected_outcome": "hang",
+      "actual_outcome": null,
+      "timed_out": null,
+      "stop_code": null,
+      "classification": null,
+      "reset_performed": null,
+      "reset_strategy": null,
+      "artifact_dir": null,
+      "ok": false
+    }
+  ],
+  "finished_at": "2026-10-21T09:05:29.6635418Z"
+}

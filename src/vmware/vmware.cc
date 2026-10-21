@@ -454,20 +454,12 @@ void Vmware::run_script(const std::string& vm, const std::string& script,
 }
 
 void Vmware::guest_mkdirs(const std::string& vm, const std::string& guest_dir) {
-    // Route through run() so the SYSTEM fallback applies: a guest sitting at the
-    // logon/lock UI has no user session, and directory creation used to time out
-    // there (which also made `e2e` fail before pushing the bundle).
-    ExecRequest request;
-    request.vm = vm;
-    request.command_line = "if not exist \"" + guest_dir + "\" mkdir \"" + guest_dir + "\"";
-    request.timeout = std::chrono::seconds(60);
-    request.run_id = "mkdir-" + std::to_string(GetTickCount64());
-    const ExecResult result = run(request);
-    if (!result.ran || result.timed_out || result.exit_code != 0) {
-        throw Error(
-            "guest mkdir failed for " + guest_dir + ": " +
-            (result.error.empty() ? "exit " + std::to_string(result.exit_code) : result.error));
-    }
+    // NOTE: must not go through run()/run_once() - run_once() calls this method to
+    // create its own job directory, so routing it back through run() recurses
+    // until the stack overflows. Creating directories stays on the plain script
+    // path; the SYSTEM fallback for exec covers the command itself.
+    run_script(vm, "if not exist \"" + guest_dir + "\" mkdir \"" + guest_dir + "\"",
+               std::chrono::seconds(60));
 }
 
 void Vmware::copy_to_guest(const std::string& vm, const fs::path& local,
