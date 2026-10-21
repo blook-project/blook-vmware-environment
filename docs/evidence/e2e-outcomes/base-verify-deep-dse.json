@@ -1,0 +1,202 @@
+{
+  "checks": [
+    {
+      "name": "snapshot \"base\" exists on the base image",
+      "ok": true
+    },
+    {
+      "name": "base image is powered off",
+      "ok": true
+    },
+    {
+      "name": "base disk present",
+      "ok": true
+    },
+    {
+      "name": "base metadata present",
+      "ok": true
+    },
+    {
+      "name": "testsigning off (DSE enforced)",
+      "ok": true
+    },
+    {
+      "name": "bcdedit nointegritychecks on",
+      "ok": true
+    },
+    {
+      "name": "kernel debugging on",
+      "ok": true
+    },
+    {
+      "name": "kernel debug over serial",
+      "ok": true
+    },
+    {
+      "name": "hypervisorlaunchtype off",
+      "ok": true
+    },
+    {
+      "name": "bugcheck: no auto reboot",
+      "ok": true
+    },
+    {
+      "name": "bugcheck: display parameters",
+      "ok": true
+    },
+    {
+      "name": "ctrl+scroll crash enabled",
+      "ok": true
+    },
+    {
+      "name": "VBS off",
+      "ok": true
+    },
+    {
+      "name": "HVCI off",
+      "ok": true
+    },
+    {
+      "name": "UAC disabled",
+      "ok": true
+    },
+    {
+      "name": "fast startup off",
+      "ok": true
+    },
+    {
+      "name": "vmware tools running",
+      "ok": true
+    },
+    {
+      "name": "dev account exists",
+      "ok": true
+    },
+    {
+      "name": "SPC trust: tsa root in Root store",
+      "ok": true
+    },
+    {
+      "name": "lock screen disabled",
+      "ok": true
+    },
+    {
+      "name": "VT-x visible in guest (CPUID VMX)",
+      "ok": true
+    },
+    {
+      "name": "ring-0 VT-x probe (IA32_FEATURE_CONTROL)",
+      "ok": true
+    },
+    {
+      "name": "provisioning completed",
+      "ok": true
+    }
+  ],
+  "notes": [],
+  "ok": true,
+  "provision": {
+    "checks": [
+      {
+        "detail": "drivers must be SPC-signed",
+        "name": "testsigning off (DSE enforced)",
+        "ok": true
+      },
+      {
+        "detail": "advapi no integrity checks",
+        "name": "bcdedit nointegritychecks on",
+        "ok": true
+      },
+      {
+        "detail": "bcdedit /debug on",
+        "name": "kernel debugging on",
+        "ok": true
+      },
+      {
+        "detail": "bcdedit /dbgsettings: serial 115200",
+        "name": "kernel debug over serial",
+        "ok": true
+      },
+      {
+        "detail": "no Hyper-V: nested VT-x is free for the lab hypervisor",
+        "name": "hypervisorlaunchtype off",
+        "ok": true
+      },
+      {
+        "detail": "AutoReboot=0 keeps the BSOD on screen",
+        "name": "bugcheck: no auto reboot",
+        "ok": true
+      },
+      {
+        "detail": "stop code visible on screen",
+        "name": "bugcheck: display parameters",
+        "ok": true
+      },
+      {
+        "detail": "bvmenv crash",
+        "name": "ctrl+scroll crash enabled",
+        "ok": true
+      },
+      {
+        "detail": "no VBS inside the guest",
+        "name": "VBS off",
+        "ok": true
+      },
+      {
+        "detail": "memory integrity off",
+        "name": "HVCI off",
+        "ok": true
+      },
+      {
+        "detail": "elevated guest ops by default",
+        "name": "UAC disabled",
+        "ok": true
+      },
+      {
+        "detail": "clean shutdown semantics",
+        "name": "fast startup off",
+        "ok": true
+      },
+      {
+        "detail": "guest ops need vmtoolsd",
+        "name": "vmware tools running",
+        "ok": true
+      },
+      {
+        "detail": "blook / blook",
+        "name": "dev account exists",
+        "ok": true
+      },
+      {
+        "detail": "blook-drv signer tsa-root.cer",
+        "name": "SPC trust: tsa root in Root store",
+        "ok": true
+      },
+      {
+        "detail": "headless screenshots stay on the desktop",
+        "name": "lock screen disabled",
+        "ok": true
+      },
+      {
+        "detail": "VMX=1 HYPERVISOR_PRESENT=1 HYPERVISOR_VENDOR=VMwawarereVM FIRMWARE_VIRTUALIZATION_ENABLED=1 CPUID_LEAF=00090672 RESULT=ok",
+        "name": "VT-x visible in guest (CPUID VMX)",
+        "ok": true
+      },
+      {
+        "detail": "cpuid_vmx=1 lock=1 vmxon_outside_smx=1 feature_control=0x00000005 vmx_basic=0x00000001",
+        "name": "ring-0 VT-x probe (IA32_FEATURE_CONTROL)",
+        "ok": true
+      },
+      {
+        "detail": "C:\\blook\\provision.json",
+        "name": "provisioning completed",
+        "ok": true
+      }
+    ],
+    "computer_name": "BLOOK-BASE",
+    "ok": true,
+    "os_version": "10.0.26200.0",
+    "schema": "bvmenv.guest-verify.v1"
+  },
+  "schema": "bvmenv.base-verify.v1"
+}

@@ -123,3 +123,19 @@ Provisioning bakes the imports in (admin): `tsa-root.cer` -> Root,
 certificate exported from a signed driver -> TrustedPublisher. Drivers are signed
 with `spcsign --sha1 --cert XINDA --tsa-time 2013-01-01T00:00:00Z --chain ...`
 (see `scripts/sign-guest-drivers.ps1`; the signer itself lives in blook-drv).
+
+## Signing findings (measured on this host, Win11 26100 guest)
+
+| Driver signature | testsigning on | testsigning off (DSE) |
+| --- | --- | --- |
+| lab cert (SHA-256, `CN=blook-lab-test`) | **loads** (SCM start OK) | rejected `577` |
+| blook-drv SPC (SHA-1, XINDA + 2013 countersignature) with Root/CA/TrustedPublisher fully populated | rejected `577` | rejected `577` |
+
+Reproduce: `sc start <driver>` returns `577` (ERROR_INVALID_IMAGE_HASH).
+Consequence for the lab: the image runs **testsigning on** and the guest test
+drivers are signed with the lab certificate (`scripts/sign-guest-drivers.ps1 -Mode lab`,
+SHA-256). The SPC chain (`-Mode spc`) is implemented and the imports are baked
+into provisioning (tsa root -> Root, VeriSign chain -> CA, XINDA leaf ->
+TrustedPublisher), but SHA-1 SPC signatures are not accepted by SCM on this
+Windows build, so they are not used for lab loads. blook-drv's own CI proves
+SPC SHA-1 loading on `windows-latest`, which is configured with testsigning on.

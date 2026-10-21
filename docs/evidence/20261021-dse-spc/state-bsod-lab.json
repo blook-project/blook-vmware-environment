@@ -1,0 +1,42 @@
+{
+  "guest_queryable": true,
+  "hang": {
+    "samples": 3,
+    "suspected": false,
+    "unchanged_samples": 1
+  },
+  "ip": null,
+  "log": {
+    "issues": [
+      {
+        "level": "warning",
+        "message": "2026-10-21T12:40:11.032Z -INFO vmware-vmx.exe 24712 [ws@4413 threadName=\"vmx\"] DISKUTILWIN32: DiskUtilW32IsATASSDDevice: Failed to send ATA IDENTIFY command to the target device.",
+        "source": "vmware.log"
+      },
+      {
+        "level": "error",
+        "message": "2026-10-21T12:40:38.293Z -ERROR vmware-vmx.exe 24712 [ws@4413 threadName=\"vmx\"] DISKLIB-LIB_CREATE   : DiskLibObjNotifySnapshot: Failed to get info: no handle.",
+        "source": "vmware.log"
+      }
+    ]
+  },
+  "power": "on",
+  "sampled_at": "2026-10-21T12:44:43Z",
+  "schema": "bvmenv.state.v1",
+  "screen": {
+    "classification": "login",
+    "confidence": 0.75,
+    "ocr_text": "时加\r\n\r\n",
+    "reason": "dominant blue framebuffer with light text but a live guest (logon UI)",
+    "screenshot": "C:\\blook-vms\\_cache\\shots\\vm-dse2-20261021T124444Z.png",
+    "stop_code": null
+  },
+  "tools": {
+    "running": true,
+    "state": "running",
+    "version": "13313"
+  },
+  "uptime_seconds": null,
+  "vm": "vm-dse2",
+  "vmx": "C:\\blook-vms\\vms\\vm-dse2\\vm-dse2.vmx"
+}

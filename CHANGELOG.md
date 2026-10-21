@@ -4,6 +4,23 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-10-21
+
+### Changed
+
+- Guest drivers are signed with the **lab certificate (SHA-256)** again; the SPC
+  path (`sign-guest-drivers.ps1 -Mode spc`, spcsign + XINDA + 2013
+  countersignature) is kept and its trust imports are baked into provisioning,
+  but **SHA-1 SPC signatures are rejected by SCM on this Windows build**
+  (`577`, both with testsigning on and off, with Root/CA/TrustedPublisher fully
+  populated - measured, see `docs/images.md`). The lab image therefore runs
+  `testsigning on`.
+- Provisioning imports the staged trust material: `tsa-root.cer` -> Root,
+  `verisign-cscs-2010.cer`/`verisign-g5-mcvr.cer` -> CA, `xinda.cer` ->
+  TrustedPublisher (the leaf is staged as a file because the chain is not yet
+  trusted during phase 2, which made the in-guest export silently produce
+  nothing).
+
 ## [0.2.0] - 2026-10-21
 
 ### Added

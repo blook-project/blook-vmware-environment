@@ -462,15 +462,15 @@ if (-not (Test-Path -LiteralPath $phase2Marker)) {
             Log ('trust: ' + $item.Store + ' <- ' + $item.File)
         }
     }
-    # The XINDA leaf certificate lives inside the signature; export it from a
-    # signed driver and trust it as a publisher.
-    Get-ChildItem -LiteralPath 'C:\blook' -Filter *.sys -ErrorAction SilentlyContinue | ForEach-Object {
-        $sig = Get-AuthenticodeSignature -LiteralPath $_.FullName
-        if ($sig.SignerCertificate) {
-            $leaf = Join-Path $env:TEMP ('spc-' + $_.BaseName + '.cer')
-            [IO.File]::WriteAllBytes($leaf, $sig.SignerCertificate.Export('Cert'))
+    # The signer (XINDA) leaf certificate is staged by the host as a file: inside
+    # phase 2 the chain is not trusted yet, so Get-AuthenticodeSignature returns
+    # no signer certificate and the export silently produced nothing (that is why
+    # DSE kept rejecting the drivers with 577).
+    foreach ($leafName in @('xinda.cer')) {
+        $leaf = Join-Path $certDir $leafName
+        if (Test-Path -LiteralPath $leaf) {
             & certutil.exe -addstore -f TrustedPublisher $leaf | Out-Null
-            Log ('trust: TrustedPublisher <- ' + $sig.SignerCertificate.Subject)
+            Log ('trust: TrustedPublisher <- ' + $leafName)
         }
     }
 
