@@ -4,6 +4,17 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.10] - 2026-10-21
+
+### Added
+
+- `exceeds_timeout_budget()` — the timeout rule shared by `exec` and `e2e` and
+  covered by five unit tests (within budget, at/over budget, late artifact, zero
+  timeout, already-timed-out). The rule was fixed twice by hand; it now cannot
+  drift between the two call sites.
+- `docs/e2e.md`: "Timeout vs fail (the rule)" and a note that bundle staging
+  works without a user session.
+
 ## [0.1.9] - 2026-10-21
 
 ### Fixed

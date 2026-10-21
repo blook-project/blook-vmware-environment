@@ -146,3 +146,22 @@ when the run timed out before the pull).
   `reset.ok`.
 * Always pass `--timeout`; a hung guest cannot be interrupted from inside, only
   from the host.
+## Timeout vs fail (the rule)
+
+`outcome` is decided in this order: `bsod` -> `hang` -> `timeout` -> exit code
+(`pass` when 0, `fail` otherwise). A run counts as `timeout` when the guest
+command consumed its whole `--timeout` budget, **even if its exit-code artifact
+arrived late** (the SYSTEM fallback keeps running after the client window
+closes, so a late `rc` file is not evidence of success).
+
+The rule lives in `exceeds_timeout_budget()` (unit-tested in
+`tests/unit/test_types.cc`) and is applied on every `exec` return path, so
+`exec` and `e2e` cannot drift apart. `exec_timeout_s` in `result.json` records
+the effective budget, and `duration_ms` the wall time actually used.
+
+## Pushing bundles to a guest without a user session
+
+`push` and `e2e` bundle staging create the guest directory through `exec`'s
+SYSTEM fallback, so staging works when the guest is parked at the logon or lock
+UI. (Before 0.1.9 it used the user session only and timed out there.)
+

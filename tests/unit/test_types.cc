@@ -97,3 +97,40 @@ TEST(Types, E2eResultJsonShape) {
     EXPECT_TRUE(out["reset"]["performed"].as_bool());
     EXPECT_EQ(out["reset"]["strategy"].as_string(), "snapshot");
 }
+
+TEST(ExceedsTimeoutBudget, WithinBudgetIsNotTimeout) {
+    ExecResult result;
+    result.duration = std::chrono::milliseconds(1200);
+    result.exit_code = 0;
+    EXPECT_FALSE(exceeds_timeout_budget(result, std::chrono::seconds(30)));
+}
+
+TEST(ExceedsTimeoutBudget, AtOrOverBudgetIsTimeout) {
+    ExecResult result;
+    result.duration = std::chrono::milliseconds(9310);
+    result.exit_code = 0;  // late artifact: must not be trusted
+    EXPECT_TRUE(exceeds_timeout_budget(result, std::chrono::seconds(5)));
+}
+
+TEST(ExceedsTimeoutBudget, LateArtifactBecomesTimedOutViaRunWrapper) {
+    // Regression for the SYSTEM-fallback success path, which used to return a
+    // killed command as a success because its exit-code file arrived late.
+    ExecResult result;
+    result.duration = std::chrono::milliseconds(9100);
+    result.exit_code = 0;
+    result.ran = true;
+    ASSERT_TRUE(exceeds_timeout_budget(result, std::chrono::seconds(5)));
+}
+
+TEST(ExceedsTimeoutBudget, ZeroTimeoutDisablesTheRule) {
+    ExecResult result;
+    result.duration = std::chrono::hours(1);
+    EXPECT_FALSE(exceeds_timeout_budget(result, std::chrono::seconds(0)));
+}
+
+TEST(ExceedsTimeoutBudget, AlreadyTimedOutStaysTimedOut) {
+    ExecResult result;
+    result.timed_out = true;
+    result.duration = std::chrono::milliseconds(10);
+    EXPECT_TRUE(exceeds_timeout_budget(result, std::chrono::seconds(5)));
+}

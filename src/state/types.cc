@@ -275,3 +275,19 @@ std::string now_stamp() {
 }
 
 }  // namespace blook::bvmenv
+
+namespace blook::bvmenv {
+
+bool exceeds_timeout_budget(const ExecResult& result, std::chrono::seconds timeout) {
+    if (timeout.count() <= 0)
+        return false;
+    if (result.timed_out)
+        return true;
+    // 1.5 s of slack: the budget is enforced around a process tree, and the
+    // artifact pull adds a little wall time to a legitimate run.
+    constexpr auto kSlack = std::chrono::milliseconds(1500);
+    const auto budget = std::chrono::duration_cast<std::chrono::milliseconds>(timeout);
+    return result.duration >= budget - kSlack;
+}
+
+}  // namespace blook::bvmenv

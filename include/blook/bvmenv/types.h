@@ -126,6 +126,11 @@ struct ExecResult {
     [[nodiscard]] json::Value to_json() const;
 };
 
+// A guest command that consumed its whole budget is a timeout even when its
+// exit-code artifact arrived late (the SYSTEM fallback keeps running after the
+// client window closes). Shared by exec and e2e so the rule cannot drift.
+[[nodiscard]] bool exceeds_timeout_budget(const ExecResult& result, std::chrono::seconds timeout);
+
 struct ResetReport {
     bool performed = false;
     bool ok = false;

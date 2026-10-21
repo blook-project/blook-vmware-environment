@@ -569,12 +569,7 @@ ExecResult Vmware::run(const ExecRequest& request) {
     // guest sits at the logon/lock UI: fall back to a SYSTEM scheduled task.
     ExecResult primary = run_once(request, request.elevated);
     auto sticky = [&](ExecResult r) {
-        // A command that consumed its whole budget is a timeout even when its
-        // exit-code artifact arrived late (the SYSTEM fallback keeps running
-        // after the client window closes).
-        constexpr auto kTimeoutGrace = std::chrono::milliseconds(1500);
-        const auto budget = std::chrono::duration_cast<std::chrono::milliseconds>(request.timeout);
-        if (request.timeout.count() > 0 && !r.timed_out && r.duration >= budget - kTimeoutGrace) {
+        if (exceeds_timeout_budget(r, request.timeout)) {
             r.timed_out = true;
             r.exit_code = -1;
         }
