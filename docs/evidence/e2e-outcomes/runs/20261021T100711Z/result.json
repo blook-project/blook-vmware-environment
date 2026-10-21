@@ -1,0 +1,110 @@
+{
+  "args": [],
+  "artifact_dir": "docs\\evidence\\e2e-outcomes\\runs\\20261021T100711Z",
+  "bundle": "docs\\evidence\\e2e-outcomes\\bundles\\slow",
+  "duration_ms": 55179,
+  "entry": "run.cmd",
+  "exec": {
+    "duration_ms": 9254,
+    "exec_timeout_s": 5,
+    "exit_code": -1,
+    "guest_dir": "C:\\blook\\runs\\20261021T100711Z",
+    "ok": false,
+    "ran": true,
+    "run_id": "20261021T100711Z",
+    "stderr_path": "",
+    "stderr_tail": "",
+    "stdout_path": "",
+    "stdout_tail": "",
+    "timed_out": true
+  },
+  "exit_code": -1,
+  "finished_at": "2026-10-21T10:08:07Z",
+  "outcome": "timeout",
+  "reset": {
+    "duration_ms": 0,
+    "ok": false,
+    "performed": false,
+    "reason": "",
+    "strategy": ""
+  },
+  "run_id": "20261021T100711Z",
+  "schema": "bvmenv.e2e.v1",
+  "started_at": "2026-10-21T10:07:11Z",
+  "state_after": {
+    "guest_queryable": true,
+    "hang": {
+      "samples": 3,
+      "suspected": false,
+      "unchanged_samples": 1
+    },
+    "ip": null,
+    "log": {
+      "issues": [
+        {
+          "level": "warning",
+          "message": "2026-10-21T10:06:43.762Z -INFO vmware-vmx.exe 3156 [ws@4413 threadName=\"vmx\"] DISKUTILWIN32: DiskUtilW32IsATASSDDevice: Failed to send ATA IDENTIFY command to the target device.",
+          "source": "vmware.log"
+        }
+      ]
+    },
+    "power": "on",
+    "sampled_at": "2026-10-21T10:08:04Z",
+    "schema": "bvmenv.state.v1",
+    "screen": {
+      "classification": "login",
+      "confidence": 0.75,
+      "ocr_text": "时加\r\n\r\n",
+      "reason": "dominant blue framebuffer with light text but a live guest (logon UI)",
+      "screenshot": "C:\\blook-vms\\_cache\\shots\\vm-e2ev-20261021T100805Z.png",
+      "stop_code": null
+    },
+    "tools": {
+      "running": true,
+      "state": "running",
+      "version": "13313"
+    },
+    "uptime_seconds": null,
+    "vm": "vm-e2ev",
+    "vmx": "C:\\blook-vms\\vms\\vm-e2ev\\vm-e2ev.vmx"
+  },
+  "state_before": {
+    "guest_queryable": true,
+    "hang": {
+      "samples": 1,
+      "suspected": false,
+      "unchanged_samples": 0
+    },
+    "ip": null,
+    "log": {
+      "issues": [
+        {
+          "level": "warning",
+          "message": "2026-10-21T10:06:43.762Z -INFO vmware-vmx.exe 3156 [ws@4413 threadName=\"vmx\"] DISKUTILWIN32: DiskUtilW32IsATASSDDevice: Failed to send ATA IDENTIFY command to the target device.",
+          "source": "vmware.log"
+        }
+      ]
+    },
+    "power": "on",
+    "sampled_at": "2026-10-21T10:07:21Z",
+    "schema": "bvmenv.state.v1",
+    "screen": {
+      "classification": "login",
+      "confidence": 0.75,
+      "ocr_text": "时加\r\n\r\n",
+      "reason": "dominant blue framebuffer with light text but a live guest (logon UI)",
+      "screenshot": "C:\\blook-vms\\_cache\\shots\\vm-e2ev-20261021T100731Z.png",
+      "stop_code": null
+    },
+    "tools": {
+      "running": true,
+      "state": "running",
+      "version": "13313"
+    },
+    "uptime_seconds": null,
+    "vm": "vm-e2ev",
+    "vmx": "C:\\blook-vms\\vms\\vm-e2ev\\vm-e2ev.vmx"
+  },
+  "timed_out": true,
+  "vm": "vm-e2ev"
+}

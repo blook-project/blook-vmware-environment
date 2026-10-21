@@ -1,1 +1,1 @@
-latest stable build: bvmenv-6e83eb6.exe (git 6e83eb6, version 0.1.12) - do not use 0.1.9-0.1.11 for guest ops
+known-good: bvmenv-41e34a0.exe (git 41e34a0, version 0.1.14). Do NOT use 0.1.9-0.1.11 (stack-overflow). KD is opt-in (--unsafe-kd) since 0.1.14.

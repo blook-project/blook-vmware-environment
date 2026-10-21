@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <future>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -380,6 +381,44 @@ StateReport Lab::sample_once(const std::string& name, const StateOptions& option
 }
 
 StateReport Lab::state(const std::string& name, const StateOptions& options) {
+    // The caller may be looking at a wedged guest or a host under IO pressure:
+    // run the probes in a worker and answer with host-only facts if they do not
+    // finish inside the budget. Returning slowly is worse than returning partial.
+    const auto budget =
+        std::chrono::seconds(options.probe_budget_s > 0 ? options.probe_budget_s : 45);
+    auto promise = std::make_shared<std::promise<StateReport>>();
+    std::future<StateReport> future = promise->get_future();
+    std::thread worker([this, &name, &options, promise] {
+        try {
+            promise->set_value(state_impl(name, options));
+        } catch (...) {
+            try {
+                promise->set_exception(std::current_exception());
+            } catch (...) {
+            }
+        }
+    });
+    if (future.wait_for(budget) == std::future_status::ready) {
+        worker.join();
+        try {
+            return future.get();
+        } catch (...) {
+            // fall through to the host-only answer
+        }
+    } else {
+        worker.detach();  // in-flight probe is abandoned; the CLI returns anyway
+    }
+    StateReport fallback;
+    fallback.vm = name;
+    try {
+        fallback.power = vmware_.power_state(name);
+    } catch (...) {
+    }
+    fallback.screen.reason = "state probes timed out; guest/host unresponsive";
+    return fallback;
+}
+
+StateReport Lab::state_impl(const std::string& name, const StateOptions& options) {
     const int samples = std::max(1, options.samples);
     const int interval =
         options.interval_ms > 0 ? options.interval_ms : cfg_.hang_sample_interval_ms;

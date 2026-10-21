@@ -4,6 +4,23 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.15] - 2026-10-21
+
+### Fixed
+
+- **`state` can no longer hang.** A wedged guest made `state` block for minutes
+  (the probes themselves never returned). The probes now run under a hard wall
+  clock (`probe_budget_s`, default 20 s) and the command answers with host-only
+  facts plus `reason: "state probes timed out; guest/host unresponsive"` instead
+  of blocking. Verified: 20.6 s worst case on a wedged guest.
+- **`screenshot --classify` runs OCR.** It classified a real bugcheck frame as
+  `boot` because the text was not read; it now OCRs the frame and reports
+  `classification: "bsod"`, the reason and the stop code (verified on a captured
+  frame: `bsod`, "bugcheck text detected in OCR", `DRIVER`).
+- `guest_mkdirs` uses VIX `createDirectoryInGuest` as a best-effort step: the
+  "already exists" case no longer aborts a push (the following file copy reports
+  a genuinely missing directory with the real path).
+
 ## [0.1.14] - 2026-10-21
 
 ### Changed - KD is disabled by default (host safety)

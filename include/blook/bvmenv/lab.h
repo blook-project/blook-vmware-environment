@@ -47,6 +47,8 @@ struct StateOptions {
     bool use_ocr = true;
     int samples = 1;      // >1 enables hang detection
     int interval_ms = 0;  // 0 = config default
+    // Hard wall clock for `state`: a hung guest must never hang the caller.
+    int probe_budget_s = 20;
 };
 
 struct BaseBuildOptions {
@@ -107,6 +109,7 @@ class Lab {
     [[nodiscard]] const Config& config() const { return cfg_; }
 
    private:
+    StateReport state_impl(const std::string& name, const StateOptions& options);
     StateReport sample_once(const std::string& name, const StateOptions& options);
     void base_build_impl(const BaseBuildOptions& options);
 

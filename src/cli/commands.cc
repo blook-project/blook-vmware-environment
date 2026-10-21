@@ -395,9 +395,18 @@ int cmd_screenshot(Context& ctx, const ParsedArgs& args) {
     if (args.has("classify")) {
         std::string error;
         if (auto stats = analyze_image(out, &error)) {
-            const ScreenReport report = classify_screen(*stats, {});
+            // OCR matters here: a bugcheck frame is blue with light text, so
+            // without the text it looked like "boot" instead of "bsod".
+            std::string ocr_engine;
+            const std::string text = ocr_image(out, ctx.config.ocr_command, &ocr_engine);
+            const ScreenReport report = classify_screen(*stats, text);
             result["classification"] = std::string(to_string(report.classification));
             result["confidence"] = report.confidence;
+            result["reason"] = report.reason;
+            if (!report.stop_code.empty())
+                result["stop_code"] = report.stop_code;
+            if (!ocr_engine.empty())
+                result["ocr_engine"] = ocr_engine;
         }
     }
     if (ctx.json)

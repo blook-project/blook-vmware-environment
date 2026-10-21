@@ -1,0 +1,105 @@
+{
+  "args": [],
+  "artifact_dir": "docs\\evidence\\e2e-outcomes\\runs\\20261021T100807Z",
+  "bundle": "docs\\evidence\\e2e-outcomes\\bundles\\bsod",
+  "duration_ms": 306930,
+  "entry": "run-bsod.cmd",
+  "error": "guest mkdir failed for C:\\blook: ",
+  "exec": {
+    "duration_ms": 0,
+    "exec_timeout_s": 0,
+    "exit_code": -1,
+    "guest_dir": "",
+    "ok": false,
+    "ran": false,
+    "run_id": "",
+    "stderr_path": "",
+    "stderr_tail": "",
+    "stdout_path": "",
+    "stdout_tail": "",
+    "timed_out": false
+  },
+  "exit_code": -1,
+  "finished_at": "2026-10-21T10:13:14Z",
+  "outcome": "error",
+  "reset": {
+    "duration_ms": 0,
+    "ok": false,
+    "performed": false,
+    "reason": "",
+    "strategy": ""
+  },
+  "run_id": "20261021T100807Z",
+  "schema": "bvmenv.e2e.v1",
+  "started_at": "2026-10-21T10:08:07Z",
+  "state_after": {
+    "guest_queryable": false,
+    "hang": {
+      "samples": 0,
+      "suspected": false,
+      "unchanged_samples": 0
+    },
+    "ip": null,
+    "log": {
+      "issues": []
+    },
+    "power": "unknown",
+    "sampled_at": "",
+    "schema": "bvmenv.state.v1",
+    "screen": {
+      "classification": "unknown",
+      "confidence": 0,
+      "ocr_text": "",
+      "reason": "",
+      "screenshot": "",
+      "stop_code": null
+    },
+    "tools": {
+      "running": false,
+      "state": "unknown",
+      "version": ""
+    },
+    "uptime_seconds": null,
+    "vm": "",
+    "vmx": ""
+  },
+  "state_before": {
+    "guest_queryable": true,
+    "hang": {
+      "samples": 1,
+      "suspected": false,
+      "unchanged_samples": 0
+    },
+    "ip": null,
+    "log": {
+      "issues": [
+        {
+          "level": "warning",
+          "message": "2026-10-21T10:06:43.762Z -INFO vmware-vmx.exe 3156 [ws@4413 threadName=\"vmx\"] DISKUTILWIN32: DiskUtilW32IsATASSDDevice: Failed to send ATA IDENTIFY command to the target device.",
+          "source": "vmware.log"
+        }
+      ]
+    },
+    "power": "on",
+    "sampled_at": "2026-10-21T10:08:16Z",
+    "schema": "bvmenv.state.v1",
+    "screen": {
+      "classification": "login",
+      "confidence": 0.75,
+      "ocr_text": "时加\r\n\r\n",
+      "reason": "dominant blue framebuffer with light text but a live guest (logon UI)",
+      "screenshot": "C:\\blook-vms\\_cache\\shots\\vm-e2ev-20261021T100826Z.png",
+      "stop_code": null
+    },
+    "tools": {
+      "running": true,
+      "state": "running",
+      "version": "13313"
+    },
+    "uptime_seconds": null,
+    "vm": "vm-e2ev",
+    "vmx": "C:\\blook-vms\\vms\\vm-e2ev\\vm-e2ev.vmx"
+  },
+  "timed_out": false,
+  "vm": "vm-e2ev"
+}

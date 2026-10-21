@@ -470,14 +470,10 @@ void Vmware::guest_mkdirs(const std::string& vm, const std::string& guest_dir) {
                 vmrun({L"-gu", widen(cfg_.guest_user), L"-gp", widen(cfg_.guest_password),
                        L"createDirectoryInGuest", vmx_wide(vm), widen(current)},
                       std::chrono::seconds(60));
-            if (r.exit_code != 0) {
-                // "already exists" is fine; anything else is a real failure.
-                const std::string text = to_lower(r.out + r.err);
-                if (text.find("already exists") == std::string::npos &&
-                    text.find("file exists") == std::string::npos) {
-                    throw Error("guest mkdir failed for " + current + ": " + trim(r.out + r.err));
-                }
-            }
+            // Best effort: "already exists" is the common case and VIX does not
+            // report it consistently. A genuinely missing directory is reported
+            // by the following copyFileFromHostToGuest with the real path.
+            (void)r;
         }
         if (next == std::string::npos)
             break;
