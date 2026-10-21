@@ -107,3 +107,19 @@ blook-drv); only the invocation contract is documented. `debug on`,
 physical machine**, not separate test machines or VMs. Anything that matters for
 results (CPU topology, VMM drivers, storage, RAM, the VMware installation) is
 identical and shared; only the user profile and its permissions differ.
+
+## SPC signing: SHA-1 only, trust imports required
+
+Confirmed on this host (Win11 26100 guest, DSE enforced via `testsigning off`):
+
+| Signature | Result |
+| --- | --- |
+| SPC **SHA-1** + TSA root trusted + chain in CA + leaf in TrustedPublisher | **loads** (SCM start OK) |
+| SPC **SHA-256** | rejected (`577` / policy) |
+| test-signed (`testsigning on`) | loads, lab only |
+
+Provisioning bakes the imports in (admin): `tsa-root.cer` -> Root,
+`verisign-cscs-2010.cer` + `verisign-g5-mcvr.cer` -> CA, and the signer
+certificate exported from a signed driver -> TrustedPublisher. Drivers are signed
+with `spcsign --sha1 --cert XINDA --tsa-time 2013-01-01T00:00:00Z --chain ...`
+(see `scripts/sign-guest-drivers.ps1`; the signer itself lives in blook-drv).

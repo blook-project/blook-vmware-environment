@@ -55,6 +55,8 @@ Add-Check 'fast startup off' (Test-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\S
 $tools = Get-Service -Name 'VMTools' -ErrorAction SilentlyContinue
 Add-Check 'vmware tools running' ($tools -and $tools.Status -eq 'Running') 'guest ops need vmtoolsd'
 Add-Check 'dev account exists' ([bool](Get-LocalUser -Name 'blook' -ErrorAction SilentlyContinue)) 'blook / blook'
+$rootStore = (& certutil.exe -store Root 2>&1) -join "`n"
+Add-Check 'SPC trust: tsa root in Root store' ($rootStore -match 'tsa') 'blook-drv signer tsa-root.cer'
 Add-Check 'lock screen disabled' (Test-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' 'NoLockScreen' 1) 'headless screenshots stay on the desktop'
 
 # --- nested virtualisation (the lab hypervisor needs VT-x) ---------------

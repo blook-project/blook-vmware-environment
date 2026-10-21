@@ -443,6 +443,37 @@ if (-not (Test-Path -LiteralPath $phase2Marker)) {
             Log ('trusted cert: ' + $_.Name)
         }
     }
+    # --- SPC trust imports (DSE on) ---------------------------------------
+    # Verified on Win11 26100: SPC **SHA-1** signatures + these imports load with
+    # DSE enforced; SHA-256 signatures are rejected. Staged by the host in
+    # C:\blook\certs (blook-drv's signer: tsa root + VeriSign chain) and
+    # C:\blook\*.sys (SPC-signed drivers whose signer certificate is exported
+    # into TrustedPublisher).
+    $certDir = 'C:\blook\certs'
+    $trustPlan = @(
+        @{ Store = 'Root'; File = 'tsa-root.cer' },
+        @{ Store = 'CA'; File = 'verisign-cscs-2010.cer' },
+        @{ Store = 'CA'; File = 'verisign-g5-mcvr.cer' }
+    )
+    foreach ($item in $trustPlan) {
+        $path = Join-Path $certDir $item.File
+        if (Test-Path -LiteralPath $path) {
+            & certutil.exe -addstore -f $item.Store $path | Out-Null
+            Log ('trust: ' + $item.Store + ' <- ' + $item.File)
+        }
+    }
+    # The XINDA leaf certificate lives inside the signature; export it from a
+    # signed driver and trust it as a publisher.
+    Get-ChildItem -LiteralPath 'C:\blook' -Filter *.sys -ErrorAction SilentlyContinue | ForEach-Object {
+        $sig = Get-AuthenticodeSignature -LiteralPath $_.FullName
+        if ($sig.SignerCertificate) {
+            $leaf = Join-Path $env:TEMP ('spc-' + $_.BaseName + '.cer')
+            [IO.File]::WriteAllBytes($leaf, $sig.SignerCertificate.Export('Cert'))
+            & certutil.exe -addstore -f TrustedPublisher $leaf | Out-Null
+            Log ('trust: TrustedPublisher <- ' + $sig.SignerCertificate.Subject)
+        }
+    }
+
     Log 'PHASE 2 complete, shutting down'
     Start-Sleep -Seconds 2
     & shutdown.exe /s /f /t 5

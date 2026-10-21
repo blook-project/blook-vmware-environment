@@ -1,1 +1,1 @@
-known-good: bvmenv-41f6b8c.exe (git 41f6b8c, version 0.1.15). Do NOT use 0.1.9-0.1.11 (stack-overflow). KD opt-in only (--unsafe-kd).
+known-good: bvmenv-b5095ef.exe (git b5095ef, version 0.2.0). Do NOT use 0.1.9-0.1.11. KD opt-in (--unsafe-kd). Lab image: testsigning on.

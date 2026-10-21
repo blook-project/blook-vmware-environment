@@ -1275,6 +1275,10 @@ json::Value Lab::doctor() {
     out["kd_pipe_configured"] = std::move(kd_pipe_configured);
     out["other_vmm_drivers"] = std::move(vmm);
     out["vmm_conflict"] = vmm_conflict;
+    // Guest drivers: SPC SHA-1 only (SHA-256 is rejected by kernel policy on
+    // Win11 26100 even with the chain trusted).
+    out["guest_signing"] =
+        std::string("SPC SHA-1 (XINDA + VeriSign chain + tsa root); DSE enforced in the image");
     checks.emplace_back("no other hypervisor VMM driver running", !vmm_conflict);
     if (vmm_conflict) {
         warnings.push(
