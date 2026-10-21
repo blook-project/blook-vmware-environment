@@ -400,11 +400,7 @@ StateReport Lab::state(const std::string& name, const StateOptions& options) {
     });
     if (future.wait_for(budget) == std::future_status::ready) {
         worker.join();
-        try {
-            return future.get();
-        } catch (...) {
-            // fall through to the host-only answer
-        }
+        return future.get();  // propagate real errors (missing VM, bad config, ...)
     } else {
         worker.detach();  // in-flight probe is abandoned; the CLI returns anyway
     }
