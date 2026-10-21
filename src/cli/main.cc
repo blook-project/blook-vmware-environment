@@ -136,13 +136,7 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
     }
 
     if (command == "crash")
-        if (command == "kd" || command == "kd-log") {
-            ParsedArgs kd_args = parse_args(rest, boolean_flags);
-            if (command == "kd-log")
-                kd_args.flags["log"] = "1";
-            return cmd_kd(ctx, kd_args);
-        }
-    return cmd_crash(ctx, parse_args(rest, boolean_flags));
+        return cmd_crash(ctx, parse_args(rest, boolean_flags));
     if (command == "doctor")
         return cmd_doctor(ctx, parse_args(rest, boolean_flags));
     if (command == "selftest")
