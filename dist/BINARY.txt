@@ -1,1 +1,1 @@
-known-good: bvmenv-e86f3c6.exe (git e86f3c6, version 0.2.2). KD opt-in (--unsafe-kd). Lab image: testsigning on (lab cert) - DSE-on/SPC verdict in docs/images.md.
+known-good: bvmenv-9e35760.exe (git 9e35760, version 0.2.3). DSE-on image + SPC SHA-1 proven. KD opt-in (--unsafe-kd); serial capture unavailable.
