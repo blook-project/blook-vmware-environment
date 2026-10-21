@@ -91,8 +91,9 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
 
     // Shared flag sets.
     const std::vector<std::string> boolean_flags = {
-        "json",   "verbose", "force", "elevated", "hard", "soft",       "no-start", "start",
-        "no-ocr", "help",    "all",   "pristine", "deep", "no-capture", "gui",      "classify",
+        "json",  "verbose",  "force",   "elevated", "hard",     "soft",      "no-start",
+        "start", "no-ocr",   "help",    "all",      "pristine", "deep",      "no-capture",
+        "gui",   "classify", "kd-pipe", "launch",   "log",      "self-test", "no-wait",
     };
 
     if (command == "create") {
@@ -127,8 +128,21 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
     }
     if (command == "key" || command == "keys")
         return cmd_key(ctx, parse_args(rest, boolean_flags));
+    if (command == "kd" || command == "kd-log") {
+        ParsedArgs kd_args = parse_args(rest, boolean_flags);
+        if (command == "kd-log")
+            kd_args.flags["log"] = "1";
+        return cmd_kd(ctx, kd_args);
+    }
+
     if (command == "crash")
-        return cmd_crash(ctx, parse_args(rest, boolean_flags));
+        if (command == "kd" || command == "kd-log") {
+            ParsedArgs kd_args = parse_args(rest, boolean_flags);
+            if (command == "kd-log")
+                kd_args.flags["log"] = "1";
+            return cmd_kd(ctx, kd_args);
+        }
+    return cmd_crash(ctx, parse_args(rest, boolean_flags));
     if (command == "doctor")
         return cmd_doctor(ctx, parse_args(rest, boolean_flags));
     if (command == "selftest")

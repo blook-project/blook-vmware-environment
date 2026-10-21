@@ -40,3 +40,5 @@ certs/
 minidumps/
 *.dmp
 .DS_Store
+
+dist/   # stable local copy of bvmenv.exe for downstream runs

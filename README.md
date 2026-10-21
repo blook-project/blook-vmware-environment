@@ -122,6 +122,31 @@ requires an unchanged framebuffer.
 Every command accepts `--json`; see the contracts in
 [`docs/state.md`](docs/state.md) and [`docs/e2e.md`](docs/e2e.md).
 
+## Kernel debugging (kd over a named pipe)
+
+```powershell
+bvmenv create vm-drv --kd-pipe            # serial0 -> \\.\pipe\blook-vm-drv-kd (VMware = server)
+bvmenv kd vm-drv                          # prints the exact kd.exe command line
+bvmenv kd-log vm-drv --seconds 60 --out kd.log   # attach, capture KD text output, detach
+```
+
+`bvmenv kd` prints
+`kd.exe -k com:pipe,port=\\.\pipe\blook-<vm>-kd,resets=0,reconnect`.
+`kd-log` runs that command for N seconds and writes everything kd received to a
+file — the only practical way to read `DbgPrint` output, because without a
+debugger the serial log is KD packet noise. The base image already has
+`debug on` + `dbgsettings serial debugport:1 baudrate:115200`.
+
+## Stable binary for downstream runs
+
+`build/windows/x64/<mode>/bvmenv.exe` is overwritten by builds. CI and the
+release package use their own copies; for long-running local e2e runs, copy it
+somewhere stable first:
+
+```powershell
+New-Item -ItemType Directory -Force dist | Out-Null
+Copy-Item build\windows\x64\release\bvmenv.exe dist\bvmenv.exe
+```
 ## Design notes
 
 * **No guest network dependency.** Guest operations use VMware's VMCI

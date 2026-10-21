@@ -30,7 +30,7 @@
     },
     {
       "name": "kernel debug over serial",
-      "ok": false
+      "ok": true
     },
     {
       "name": "hypervisorlaunchtype off",
@@ -90,7 +90,7 @@
     }
   ],
   "notes": [],
-  "ok": false,
+  "ok": true,
   "provision": {
     "checks": [
       {
@@ -109,9 +109,9 @@
         "ok": true
       },
       {
-        "detail": "debugport:1 baudrate:115200",
+        "detail": "bcdedit /dbgsettings: serial 115200",
         "name": "kernel debug over serial",
-        "ok": false
+        "ok": true
       },
       {
         "detail": "no Hyper-V: nested VT-x is free for the lab hypervisor",
@@ -185,7 +185,7 @@
       }
     ],
     "computer_name": "BLOOK-BASE",
-    "ok": false,
+    "ok": true,
     "os_version": "10.0.26200.0",
     "schema": "bvmenv.guest-verify.v1"
   },

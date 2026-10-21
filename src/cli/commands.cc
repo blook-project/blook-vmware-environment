@@ -163,6 +163,7 @@ int cmd_create(Context& ctx, const ParsedArgs& args) {
     }
     if (args.has("from"))
         options.from = args.get("from");
+    options.kd_pipe = args.has("kd-pipe");
     options.start = !args.has("no-start");
     options.wait_ready = !args.has("no-wait");
     if (args.has("timeout")) {
@@ -652,6 +653,97 @@ int cmd_selftest(Context& ctx, const ParsedArgs& args) {
         std::printf("selftest: %s\n", ok ? "ok" : "FAILED");
     }
     return ok ? 0 : 1;
+}
+
+// ---------------------------------------------------------------------------
+// Kernel debugging over a named pipe.
+//
+// `create --kd-pipe` rewrites the fork's serial port to
+// `\\.\\pipe\\blook-<vm>-kd` (VMware is the pipe server). `bvmenv kd <vm>`
+// prints the exact kd.exe command line, and `bvmenv kd-log <vm> [--seconds N]`
+// runs kd and captures its text output to a file - the only usable way to see
+// DbgPrint output, because the serial log is KD packet noise without a debugger.
+// ---------------------------------------------------------------------------
+namespace {
+
+fs::path find_kd() {
+    const wchar_t* candidates[] = {
+        L"Y:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64\\kd.exe",
+        L"C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64\\kd.exe",
+    };
+    for (const wchar_t* candidate : candidates) {
+        if (file_exists(candidate))
+            return fs::path(candidate);
+    }
+    const std::wstring found = find_executable(L"kd");
+    return found.empty() ? fs::path{} : fs::path(found);
+}
+
+std::string kd_pipe_name(const std::string& vm) {
+    return "\\\\.\\pipe\\blook-" + vm + "-kd";
+}
+
+std::string kd_command_line(const fs::path& kd, const std::string& pipe) {
+    return to_utf8(kd.wstring()) + " -k com:pipe,port=" + pipe + ",resets=0,reconnect";
+}
+
+}  // namespace
+
+int cmd_kd(Context& ctx, const ParsedArgs& args) {
+    if (args.positional.empty()) {
+        std::cerr << "bvmenv: kd requires a VM name (create it with --kd-pipe)\n";
+        return 2;
+    }
+    const std::string name = args.positional[0];
+    if (!ctx.vmware.find(name)) {
+        std::cerr << "bvmenv: no such VM: " << name << "\n";
+        return 2;
+    }
+    const std::string pipe = kd_pipe_name(name);
+    const fs::path kd = find_kd();
+    if (kd.empty()) {
+        std::cerr << "bvmenv: kd.exe not found (install the Windows SDK Debugging Tools)\n";
+        return 2;
+    }
+    json::Value out(json::Object{});
+    out["schema"] = std::string("bvmenv.kd.v1");
+    out["vm"] = name;
+    out["pipe"] = pipe;
+    out["kd_exe"] = to_utf8(kd.wstring());
+    out["command"] = kd_command_line(kd, pipe);
+
+    if (!args.has("log") && !args.has("launch")) {
+        if (ctx.json) {
+            std::printf("%s\n", out.dump(2).c_str());
+        } else {
+            std::printf("%s\n", kd_command_line(kd, pipe).c_str());
+        }
+        return 0;
+    }
+
+    const int seconds = static_cast<int>(parse_ll(args.get("seconds"), 30));
+    const fs::path log_path = args.has("out")
+                                  ? fs::path(to_wide(args.get("out")))
+                                  : (ctx.config.evidence_dir() / "kd" / (name + "-kd.log"));
+    ensure_dir(log_path.parent_path());
+    ProcessOptions options;
+    options.command_line = build_command_line(
+        {kd.wstring(), L"-k", L"com:pipe,port=" + to_wide(pipe) + L",resets=0,reconnect"});
+    options.timeout = std::chrono::seconds(seconds);
+    const ProcessResult result = run_process(options);
+    const std::string log = result.out + result.err;
+    write_text(log_path, log);
+    out["log_path"] = to_utf8(log_path.wstring());
+    out["seconds"] = seconds;
+    out["timed_out"] = result.timed_out;
+    out["bytes"] = static_cast<long long>(log.size());
+    if (ctx.json) {
+        std::printf("%s\n", out.dump(2).c_str());
+    } else {
+        std::printf("kd log (%lld bytes, timed_out=%s): %s\n", static_cast<long long>(log.size()),
+                    result.timed_out ? "true" : "false", to_utf8(log_path.wstring()).c_str());
+    }
+    return result.started ? 0 : 2;
 }
 
 void print_help() {

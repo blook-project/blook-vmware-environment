@@ -149,8 +149,17 @@ VmInfo Lab::create(const CreateOptions& options) {
     vmx.remove("ethernet0.address");
     vmx.remove("ethernet0.generatedAddress");
     vmx.remove("ethernet0.generatedAddressOffset");
-    vmx.set("serial0.fileType", "file");
-    vmx.set("serial0.fileName", "serial.log");
+    if (options.kd_pipe) {
+        // Named pipe KD: VMware is the pipe server, kd.exe the client.
+        vmx.set("serial0.fileType", "pipe");
+        vmx.set("serial0.fileName", "\\\\.\\pipe\\blook-" + options.name + "-kd");
+        vmx.set("serial0.pipe.endPoint", "server");
+        vmx.remove("serial0.tryNoRxLoss");
+        vmx.remove("serial0.yieldOnMsrRead");
+    } else {
+        vmx.set("serial0.fileType", "file");
+        vmx.set("serial0.fileName", "serial.log");
+    }
     vmx.remove("nvram");
     vmx.set("extendedConfigFile", options.name + ".vmxf");
     vmx.set("vmxstats.filename", options.name + ".scoreboard");

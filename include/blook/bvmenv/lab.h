@@ -34,6 +34,9 @@ struct CreateOptions {
     std::string from = "base";
     int cpus = 0;       // 0 = use config default
     int memory_mb = 0;  // 0 = use config default
+    // Rewrite serial0 to a named pipe so kd.exe can attach to the fork
+    // (`bvmenv kd <vm>` prints the exact command line).
+    bool kd_pipe = false;
     bool start = true;
     bool wait_ready = true;
     int ready_timeout_s = 240;
