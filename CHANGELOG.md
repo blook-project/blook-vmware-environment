@@ -4,6 +4,26 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-10-21
+
+### Added
+
+- `bvmenv create <name> --kd-pipe` rewrites the fork's serial port to a named
+  pipe (`\\.\pipe\blook-<vm>-kd`, VMware as server), `bvmenv kd <vm>` prints the
+  matching `kd.exe -k com:pipe,port=...` command line, and
+  `bvmenv kd-log <vm> --seconds N --out file` runs kd and captures its text
+  output (the only usable way to read DbgPrint output).
+- `bvmenv exec --env KEY=VALUE` (repeatable) injects guest environment variables
+  into the generated job file so the child process inherits them.
+
+### Fixed
+
+- Command dispatch fell through to `crash` for unrelated commands after the kd
+  insertion (caught by the CI smoke test); `doctor`/`selftest` work again.
+- `state` guest probes are bounded (8-10 s) so it always answers on a hung guest.
+- Failed e2e runs in the evidence directory are kept under `e2e-failed/` so the
+  evidence set is unambiguous.
+
 ## [0.1.0] - 2026-10-21
 
 ### Added
