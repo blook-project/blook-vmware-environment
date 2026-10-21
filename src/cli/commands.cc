@@ -976,8 +976,8 @@ int cmd_kd(Context& ctx, const ParsedArgs& args) {
 }
 
 void print_help() {
-    std::cout
-        << R"(bvmenv )" << BVMENV_VERSION << R"( - VMware Workstation lab for Windows kernel tests
+    std::cout << R"(bvmenv )" << BVMENV_VERSION
+              << R"( - VMware Workstation lab for Windows kernel tests
 
 Usage: bvmenv [--json] [--verbose] <command> [options]
        bvmenv --allow-many ...    bypass the concurrent-VM budget (default 4)
