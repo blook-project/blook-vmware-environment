@@ -976,43 +976,50 @@ int cmd_kd(Context& ctx, const ParsedArgs& args) {
 }
 
 void print_help() {
-    std::printf(
-        "bvmenv %s - VMware Workstation lab for Windows kernel tests\n"
-        "\n"
-        "Usage: bvmenv [--json] [--verbose] <command> [options]\n"
-        "\n"
-        "Base image\n"
-        "  base build [--iso <path>] [--disk-gb 80] [--force]   unattended base image + snapshot "
-        "'base'\n"
-        "  base verify [--json]                                 machine-check the base image "
-        "contract\n"
-        "\n"
-        "Lifecycle\n"
-        "  create <name> [--cpus 4] [--memory 6144] [--from base] [--no-start]\n"
-        "  start <name> | stop <name> [--soft] | reset <name> | delete <name>\n"
-        "  list [--json]\n"
-        "\n"
-        "Guest execution (guest ops over VMCI, no guest network needed)\n"
-        "  exec <name> [--timeout 120] [--elevated] [--workdir <dir>] -- <command line>\n"
-        "  push <name> <local> <guest>       pull <name> <guest> <local>\n"
-        "  wait-ready <name> [--timeout 240]\n"
-        "\n"
-        "Host side observation (works on BSOD / hang / boot)\n"
-        "  state <name> [--json] [--samples N] [--no-ocr] [--screenshot out.png]\n"
-        "  screenshot <name> <out.png> [--classify]\n"
-        "  key <name> <hid> <modifier> | keys <name> <text> | crash <name>\n"
-        "\n"
-        "End-to-end runner (used by downstream projects)\n"
-        "  e2e <name> --bundle <dir> --entry <exe|cmd> [--args A] [--timeout N]\n"
-        "             [--out <dir>] [--reset-on failure|always|never]\n"
-        "\n"
-        "Diagnostics\n"
-        "  doctor [--json]     selftest [--json]     version\n"
-        "\n"
-        "Environment: BVMENV_VM_ROOT (default C:\\blook-vms), BVMENV_VMWARE_DIR,\n"
-        "             BVMENV_WINDOWS_ISO, BVMENV_GUEST_USER/PASSWORD, BVMENV_OCR_COMMAND\n"
-        "Contract: docs/e2e.md (bvmenv.e2e.v1) and docs/state.md (bvmenv.state.v1)\n",
-        BVMENV_VERSION);
+    std::cout
+        << R"(bvmenv )" << BVMENV_VERSION << R"( - VMware Workstation lab for Windows kernel tests
+
+Usage: bvmenv [--json] [--verbose] <command> [options]
+       bvmenv --allow-many ...    bypass the concurrent-VM budget (default 4)
+
+Base image (built once, then cloned)
+  base build [--iso <path>] [--disk-gb 80] [--force]   unattended base image + snapshot 'base'
+  base verify [--deep] [--json]                        host-side contract (--deep = live guest check)
+
+Lifecycle
+  create <name> [--cpus 4] [--memory 6144] [--from base] [--no-start] [--kd-pipe]
+  start <name> | stop <name> [--soft] | reset <name> | delete <name> [--force]
+  list [--json]
+
+Guest execution (guest ops over VMCI; falls back to a SYSTEM task without a session)
+  exec <name> [--timeout 120] [--elevated] [--workdir <dir>] [--env K=V ...]
+              [--self-test] -- <command line>
+  push <name> <local> <guest>       pull <name> <guest> <local>
+  wait-ready <name> [--timeout 600]
+
+Host side observation (works on BSOD / hang / boot, no guest userland)
+  state <name> [--json] [--samples N] [--no-ocr] [--screenshot out.png]
+  screenshot <name> <out.png> [--classify]
+  key <name> <hid> <modifier> | keys <name> <text> | crash <name>
+
+Kernel debugging over a named pipe (DbgPrint / post-hang stacks)
+  kd-pipe <vm> [--off]                       convert an existing fork's serial0 to \\.\pipe\blook-<vm>-kd
+  kd <vm> [--json]                           print the kd.exe -k com:pipe,... command line
+  kd-log <vm> [--seconds N] [--reset] [--no-continue] [--out file]
+             [--break-after N] [--commands "~* kv; q"]
+
+End-to-end runner (used by downstream projects, contract in docs/e2e.md)
+  e2e <name> --bundle <dir> --entry <exe|cmd> [--args A] [--timeout N]
+             [--out <dir>] [--reset-on failure|always|never] [--wait-timeout N]
+
+Diagnostics
+  doctor [--json]     selftest [--json]     version
+
+Environment: BVMENV_VM_ROOT (default C:\blook-vms), BVMENV_VMWARE_DIR,
+             BVMENV_WINDOWS_ISO, BVMENV_GUEST_USER/PASSWORD, BVMENV_OCR_COMMAND,
+             BVMENV_MAX_RUNNING_VMS (default 4)
+Contracts: docs/e2e.md (bvmenv.e2e.v1), docs/state.md (bvmenv.state.v1), docs/images.md
+)";
 }
 
 }  // namespace blook::bvmenv::cli

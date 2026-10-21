@@ -4,6 +4,26 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.11] - 2026-10-21
+
+### Added
+
+- `scripts/validate-e2e-outcomes.ps1` — one-shot, self-cleaning validation of the
+  `bvmenv.e2e.v1` failure contract on a real fork: a command that ignores its
+  budget must classify as `timeout`, a real bugcheck as `bsod`, a real hard hang
+  as `hang`, and the crash cases must have auto-reset the VM
+  (`reset.performed: true`). Writes `summary.json` + run artifacts to
+  `docs/evidence/e2e-outcomes/`.
+
+### Documentation
+
+- `bvmenv --help` now documents the commands added since 0.1.0: `kd-pipe`, `kd`,
+  `kd-log` (with `--reset/--no-continue/--break-after/--commands`), `delete
+  --force`, `create --kd-pipe`, `exec --env/--self-test`, `base verify --deep`
+  (including the extra out-of-band PowerShell comments such as `Version`,
+  `OS`, `RAM`, `State`), `--allow-many`, `BVMENV_MAX_RUNNING_VMS`, and the
+  600 s default readiness window.
+
 ## [0.1.10] - 2026-10-21
 
 ### Added

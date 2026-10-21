@@ -1,1 +1,1 @@
-latest stable build: bvmenv-57ca90e.exe (git 57ca90e, version 0.1.9)
+latest stable build: bvmenv-2d96188.exe (git 2d96188, version 0.1.10)
