@@ -60,11 +60,11 @@ is reviewable in version control instead of hiding in a binary blob.
 
 ## Concurrency budget
 
-Never run more than **3** guests at once on this host (64 GB RAM, ~6 GB per
-guest). Six concurrent guests froze the host on 2026-10-21 (Kernel-Power 41, no
+Up to **4** guests at once is fine on this host (64 GB RAM, 24 threads,
+~6 GB per guest); that is the default budget. Six concurrent guests froze the host on 2026-10-21 (Kernel-Power 41, no
 dump): the failure mode is host memory/IO starvation, not a guest bug.
 
-`bvmenv` enforces this: `start`/`create` refuse to bring up a fourth managed VM
+`bvmenv` enforces this: `start`/`create` refuse to bring up a fifth managed VM
 unless `--allow-many` is passed, and `bvmenv doctor` reports the running count,
 their memory footprint and free host RAM. Stale forks left by a host reboot are
 removed with `bvmenv delete <vm> --force` (only when no `vmware-vmx` holds them).

@@ -4,6 +4,18 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.8] - 2026-10-21
+
+### Changed
+
+- Concurrency budget raised to **4** concurrent managed VMs (64 GB / 24 threads is
+  sized for that); `BVMENV_MAX_RUNNING_VMS` and `--allow-many` unchanged. The
+  guard is a guard rail, not a diagnosis: the 2026-10-21 freeze had six guests
+  (including a short-lived probe fork), and further hangs at four are to be
+  investigated as VMware/driver/storage interactions rather than VM count.
+- `bvmenv doctor` emits a **warning** (not a refusal) when free host RAM drops
+  below 8 GB, alongside `running_vms` / `running_memory_mb` / `free_ram_mb`.
+
 ## [0.1.7] - 2026-10-21
 
 ### Added

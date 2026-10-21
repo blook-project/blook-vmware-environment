@@ -1185,6 +1185,15 @@ json::Value Lab::doctor() {
     out["free_ram_mb"] = free_ram_mb;
     out["max_running_vms"] = cfg_.max_running_vms;
     checks.emplace_back("running managed VMs within budget", running <= cfg_.max_running_vms);
+    // Low free RAM is a warning, not a refusal: the budget is a guard rail, not
+    // a claim that VM count is the only possible cause of a host freeze.
+    json::Value warnings(json::Array{});
+    if (free_ram_mb > 0 && free_ram_mb < 8192) {
+        warnings.push(std::string("free host RAM below 8 GB (") + std::to_string(free_ram_mb) +
+                      " MB) with " + std::to_string(running) + " managed VM(s) running");
+    }
+    out["free_ram_low"] = free_ram_mb > 0 && free_ram_mb < 8192;
+    out["warnings"] = std::move(warnings);
     checks.emplace_back("no file-backed virtual disks attached to the host",
                         out["attached_vhds"].items().empty());
 

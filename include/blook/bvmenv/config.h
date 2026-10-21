@@ -32,7 +32,7 @@ struct Config {
     int command_timeout_ms = 300000;
     // Hard operational limit: this host froze twice with ~6 concurrent guests.
     // Starting a managed VM above this budget is refused unless --allow-many.
-    int max_running_vms = 3;  // 64 GB host: 3 x 6 GB leaves >30 GB free
+    int max_running_vms = 4;  // 64 GB / 24 threads: 4 x 6 GB is fine
     int hang_sample_interval_ms = 2000;
 
     bool verbose = false;

@@ -80,16 +80,18 @@ gsudo -d .\build\windows\x64\releasedbg\bvmenv.exe base build
 
 This host froze twice with many concurrent guests (the second time with six
 VMware VMs up, no host kernel code running). bvmenv therefore **refuses to start
-a managed VM when 3 are already running**:
+a managed VM when 4 are already running**:
 
 ```
-bvmenv: VM budget reached (3 of 3 managed VMs running: vm-drv, vm-kdu, vm-kchannel);
+bvmenv: VM budget reached (4 of 4 managed VMs running: vm-drv, vm-kdu, vm-drv-lite, vm-kdprobe);
         stop one first (bvmenv stop <vm>) or pass --allow-many
 ```
 
-* 64 GB RAM, ~6 GB per guest: 3 guests leaves >30 GB free. Do not exceed it.
+* 64 GB RAM, 24 threads: 4 guests (~6 GB each) is the intended operating point. The
+guard is a guard rail, not a diagnosis; hangs are investigated as VMware/driver/storage
+interactions rather than VM count.
 * `--allow-many` bypasses the guard for a deliberate exception;
-  `BVMENV_MAX_RUNNING_VMS` overrides the budget (default 3).
+  `BVMENV_MAX_RUNNING_VMS` overrides the budget (default 4).
 * `bvmenv doctor` reports `running_vms`, `running_memory_mb`, `free_ram_mb` and
   `max_running_vms`, and has a "running managed VMs within budget" check.
 * A stale fork (directory without a `vmware-vmx` process, e.g. after a host
