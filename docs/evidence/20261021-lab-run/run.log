@@ -1,7 +1,7 @@
 
-[13:02:12] 1. environment: doctor
-[13:02:12] $ bvmenv doctor --json
-[13:02:28]   exit=1
+[13:03:39] 1. environment: doctor
+[13:03:39] $ bvmenv doctor --json
+[13:03:45]   exit=1
 {
   "attached_vhds": [
     "2\t500GB\t\\\\?\\scsi#disk&ven_msft&prod_virtual_disk#2&1f4adffe&0&000001#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}"
@@ -59,6 +59,12 @@
     },
     {
       "base": false,
+      "name": "verify-20261021T050231Z",
+      "power": "on",
+      "vmx": "C:\\blook-vms\\vms\\verify-20261021T050231Z\\verify-20261021T050231Z.vmx"
+    },
+    {
+      "base": false,
       "name": "vm-drv",
       "power": "on",
       "vmx": "C:\\blook-vms\\vms\\vm-drv\\vm-drv.vmx"
@@ -78,7 +84,7 @@
     {
       "base": false,
       "name": "vm-kchannel",
-      "power": "on",
+      "power": "off",
       "vmx": "C:\\blook-vms\\vms\\vm-kchannel\\vm-kchannel.vmx"
     },
     {
@@ -91,9 +97,9 @@
   "vmware_dir": "Y:\\Program Files (x86)\\VMware\\VMware Workstation"
 }
 
-[13:02:28] 2. base image contract: fast + deep
-[13:02:28] $ bvmenv base verify --json
-[13:02:30]   exit=0
+[13:03:45] 2. base image contract: fast + deep
+[13:03:45] $ bvmenv base verify --json
+[13:03:46]   exit=0
 {
   "checks": [
     {
@@ -120,4 +126,102 @@
   "schema": "bvmenv.base-verify.v1"
 }
 
-[13:02:30] $ bvmenv base verify --deep --json
+[13:03:46] base verify --deep skipped (--SkipDeepVerify)
+[13:03:46] 3. linked clone vm-evidence from snapshot 'base'
+[13:03:46] $ bvmenv create vm-evidence --json
+[13:03:47]   exit=2
+{
+  "error": "VM 'vm-evidence' already exists at C:\\blook-vms\\vms\\vm-evidence\\vm-evidence.vmx",
+  "ok": false,
+  "schema": "bvmenv.error.v1"
+}
+
+[13:03:47] $ bvmenv wait-ready vm-evidence --timeout 240 --json
+
+### create (exit=0, 228.5s)
+{
+  "base": "base",
+  "cpus": 4,
+  "duration_ms": 228475,
+  "memory_mb": 6144,
+  "name": "vm-evidence",
+  "schema": "bvmenv.create.v1",
+  "snapshot": "base",
+  "vmx": "C:\\blook-vms\\vms\\vm-evidence\\vm-evidence.vmx"
+}
+
+
+### wait-ready (exit=0, 7.6s)
+{
+  "name": "vm-evidence",
+  "ok": true,
+  "schema": "bvmenv.wait-ready.v1",
+  "timeout_s": 300
+}
+
+
+### exec (exit=0, 6.1s)
+exit_code    : 0
+
+
+Microsoft Windows [�汾 10.0.26200.7623]
+
+blook-base\blook
+
+BVMENV-EXEC-OK 
+
+
+
+### exec-env (exit=0, 6s)
+exit_code    : 0
+guest=guest-42 
+
+
+
+### exec-timeout (exit=-1, 1.2s)
+
+
+### state-desktop (exit=0, 12.1s)
+{
+  "guest_queryable": true,
+  "hang": {
+    "samples": 3,
+    "suspected": false,
+    "unchanged_samples": 1
+  },
+  "ip": null,
+  "log": {
+    "issues": [
+      {
+        "level": "warning",
+        "message": "2026-10-21T05:08:38.960Z -INFO vmware-vmx.exe 3080 [ws@4413 threadName=\"vmx\"] DISKUTILWIN32: DiskUtilW32IsATASSDDevice: Failed to send ATA IDENTIFY command to the target device.",
+        "source": "vmware.log"
+      },
+      {
+        "level": "error",
+        "message": "2026-10-21T05:09:07.257Z -ERROR vmware-vmx.exe 3080 [ws@4413 threadName=\"vmx\"] DISKLIB-LIB_CREATE   : DiskLibObjNotifySnapshot: Failed to get info: no handle.",
+        "source": "vmware.log"
+      }
+    ]
+  },
+  "power": "on",
+  "sampled_at": "2026-10-21T05:12:55Z",
+  "schema": "bvmenv.state.v1",
+  "screen": {
+    "classification": "desktop",
+    "confidence": 0.80000000000000004,
+    "ocr_text": "时加\r\n\r\n",
+    "reason": "guest operations responded to a ping",
+    "screenshot": "C:\\blook-vms\\_cache\\shots\\vm-evidence-20261021T051256Z.png",
+    "stop_code": null
+  },
+  "tools": {
+    "running": true,
+    "state": "running",
+    "version": "13313"
+  },
+  "uptime_seconds": null,
+  "vm": "vm-evidence",
+  "vmx": "C:\\blook-vms\\vms\\vm-evidence\\vm-evidence.vmx"
+}
+

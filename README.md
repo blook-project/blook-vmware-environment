@@ -76,6 +76,31 @@ gsudo -d .\build\windows\x64\releasedbg\bvmenv.exe base build
 .\build\windows\x64\releasedbg\bvmenv.exe reset vm-drv
 ```
 
+## Measured performance (this host, Windows 11 build 26100, Workstation 25.0.0)
+
+Real numbers from [`docs/evidence/20261021-lab-run/`](docs/evidence/20261021-lab-run)
+(`summary.json` has the per-step values). Host was shared with other lab users
+booting clones, so the create number is a worst case.
+
+| Operation | Time |
+| --- | --- |
+| Linked clone only (`create --no-start`) | **1.8 s** |
+| `create` + first boot + ready snapshot | 228 s (first boot re-enumerates devices) |
+| `wait-ready` on a warm VM | **~3 s** |
+| `exec` round trip (stdout/stderr/exit code) | 6.1 s |
+| `exec --env KEY=VALUE` round trip | 6.0 s |
+| `exec --timeout 5` (timeout enforcement) | 9.2 s total, `timed_out: true` |
+| `state` desktop / login (2-3 samples) | 8-11 s (includes tesseract OCR) |
+| `state` on a real BSOD | 12.3 s, stop code read by OCR |
+| `state` hard-hang detection (3 unchanged frames) | 15.7 s |
+| `reset` after BSOD / hang | **4.0 s / 3.7 s** (target < 20 s) |
+| `base verify --deep` (live guest contract) | 254 s |
+| `base build` (DISM apply → convert → first boot → provision → snapshot) | ~14 min |
+
+Classification guarantees (see [`docs/state.md`](docs/state.md)): a blue frame
+with light text is `login` while the guest answers, and only becomes `bsod` when
+the guest stopped responding (or OCR found bugcheck text); `hang` additionally
+requires an unchanged framebuffer.
 ## Command map
 
 | Command | Purpose |

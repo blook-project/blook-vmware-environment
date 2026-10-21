@@ -302,7 +302,7 @@ StateReport Lab::sample_once(const std::string& name, const StateOptions& option
                 name,
                 "powershell -NoProfile -Command \"[int]((Get-Date)-(Get-CimInstance "
                 "Win32_OperatingSystem).LastBootUpTime).TotalSeconds\"",
-                &ok, std::chrono::seconds(45));
+                &ok, std::chrono::seconds(10));
             if (ok) {
                 try {
                     report.uptime_seconds = std::stoll(trim(out));
@@ -329,16 +329,13 @@ StateReport Lab::sample_once(const std::string& name, const StateOptions& option
                 screen_context.guest_queryable = report.guest_queryable;
                 report.screen = classify_screen(*stats, text, screen_context);
                 report.screen.screenshot = to_utf8(png.wstring());
+                // Do NOT turn an unclear frame into "desktop" just because guest operations
+                // answer: they also answer (through the SYSTEM fallback) on the
+                // logon/lock UI, which would mask a stuck auto-logon.
                 if (report.tools.state == ToolsState::Running &&
-                    report.screen.classification != ScreenClass::Bsod) {
-                    // A responsive guest with a busy frame is a desktop even if
-                    // the wallpaper confused the heuristics.
-                    if (report.screen.classification != ScreenClass::Desktop &&
-                        report.screen.confidence < 0.9) {
-                        report.screen.classification = ScreenClass::Desktop;
-                        report.screen.confidence = 0.8;
-                        report.screen.reason = "guest operations responded to a ping";
-                    }
+                    report.screen.classification == ScreenClass::Unknown) {
+                    report.screen.confidence = 0.4;
+                    report.screen.reason += " (guest operations answered, frame unclear)";
                 }
                 if (engine.empty() && options.use_ocr) {
                     report.screen.reason += " (no OCR engine available)";
@@ -667,6 +664,11 @@ BaseVerifyReport Lab::base_verify(const std::string& name, bool deep) {
         } else {
             vmware_.guest_mkdirs(probe, "C:\\blook");
             vmware_.copy_to_guest(probe, check_script, "C:\\blook\\verify.ps1");
+            // The CPUID check needs the user mode probe inside the guest.
+            if (const fs::path nested = find_guest_artifact(L"guest-nested-virt-check.exe");
+                !nested.empty()) {
+                vmware_.copy_to_guest(probe, nested, "C:\\blook\\nested-virt-check.exe");
+            }
             bool ok = false;
             const std::string raw = vmware_.guest_capture(
                 probe, "powershell -NoProfile -ExecutionPolicy Bypass -File C:\\blook\\verify.ps1",

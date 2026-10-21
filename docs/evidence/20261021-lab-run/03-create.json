@@ -1,0 +1,21 @@
+=== create : exit=0 228.5s ===
+{
+  "base": "base",
+  "cpus": 4,
+  "duration_ms": 228475,
+  "memory_mb": 6144,
+  "name": "vm-evidence",
+  "schema": "bvmenv.create.v1",
+  "snapshot": "base",
+  "vmx": "C:\\blook-vms\\vms\\vm-evidence\\vm-evidence.vmx"
+}
+{
+  "base": "base",
+  "cpus": 4,
+  "duration_ms": 228475,
+  "memory_mb": 6144,
+  "name": "vm-evidence",
+  "schema": "bvmenv.create.v1",
+  "snapshot": "base",
+  "vmx": "C:\\blook-vms\\vms\\vm-evidence\\vm-evidence.vmx"
+}

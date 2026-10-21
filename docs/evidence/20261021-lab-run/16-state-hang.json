@@ -1,0 +1,37 @@
+{
+  "guest_queryable": true,
+  "hang": {
+    "samples": 4,
+    "suspected": true,
+    "unchanged_samples": 2
+  },
+  "ip": null,
+  "log": {
+    "issues": [
+      {
+        "level": "warning",
+        "message": "2026-10-21T05:26:35.448Z -INFO vmware-vmx.exe 15364 [ws@4413 threadName=\"vmx\"] DISKUTILWIN32: DiskUtilW32IsATASSDDevice: Failed to send ATA IDENTIFY command to the target device.",
+        "source": "vmware.log"
+      }
+    ]
+  },
+  "power": "on",
+  "sampled_at": "2026-10-21T05:30:24Z",
+  "schema": "bvmenv.state.v1",
+  "screen": {
+    "classification": "hang",
+    "confidence": 0.80000000000000004,
+    "ocr_text": "时加\r\n\r\n",
+    "reason": "framebuffer unchanged over 3 samples and the guest stopped responding",
+    "screenshot": "C:\\blook-vms\\_cache\\shots\\vm-evidence-20261021T053025Z.png",
+    "stop_code": null
+  },
+  "tools": {
+    "running": false,
+    "state": "installed",
+    "version": "13313"
+  },
+  "uptime_seconds": null,
+  "vm": "vm-evidence",
+  "vmx": "C:\\blook-vms\\vms\\vm-evidence\\vm-evidence.vmx"
+}

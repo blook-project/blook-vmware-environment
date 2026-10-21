@@ -34,7 +34,8 @@ $bcd = (& bcdedit.exe /enum '{current}' 2>&1) -join "`n"
 Add-Check 'bcdedit testsigning on' ($bcd -match 'testsigning\s+Yes') 'bcdedit /set {current} testsigning on'
 Add-Check 'bcdedit nointegritychecks on' ($bcd -match 'nointegritychecks\s+Yes') 'advapi no integrity checks'
 Add-Check 'kernel debugging on' ($bcd -match 'debug\s+Yes') 'bcdedit /debug on'
-Add-Check 'kernel debug over serial' ($bcd -match 'debugport:\s*1') 'debugport:1 baudrate:115200'
+$dbg = (& bcdedit.exe /dbgsettings 2>&1) -join "`n"
+Add-Check 'kernel debug over serial' (($dbg -match 'serial') -and ($dbg -match '115200')) 'bcdedit /dbgsettings: serial 115200'
 Add-Check 'hypervisorlaunchtype off' ($bcd -match 'hypervisorlaunchtype\s+Off') 'no Hyper-V: nested VT-x is free for the lab hypervisor'
 
 # --- bugcheck behaviour ---------------------------------------------------

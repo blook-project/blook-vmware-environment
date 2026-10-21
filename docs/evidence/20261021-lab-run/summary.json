@@ -1,0 +1,74 @@
+{
+  "schema": "bvmenv.evidence.v1",
+  "created_at": "2026-10-21T05:30:00Z",
+  "host": "MB-CLOUD",
+  "vm": "vm-evidence",
+  "source": "real runs on this host (VMware Workstation 25.0.0.24995812); no dry runs, no mocked hypervisor",
+  "base_image": {
+    "iso": "zh-cn_windows_11_consumer_editions_version_25h2_updated_jan_2026_x64_dvd_fb37d9ae.iso",
+    "edition_index": 4,
+    "os": "10.0.26200 Windows 11 Pro",
+    "firmware": "bios",
+    "snapshot": "base",
+    "provision_json_failures": [],
+    "nested_virt": {
+      "cpuid_vmx": 1,
+      "feature_control_locked": 1,
+      "vmxon_outside_smx": 1,
+      "feature_control_low": "0x00000005",
+      "vmx_basic_low": "0x00000001",
+      "probe": "guest-vtx-probe.sys (test signed, loaded: STATE 4 RUNNING) + guest-nested-virt-check.exe",
+      "usermode_result": "VMX=1 HYPERVISOR_PRESENT=1 HYPERVISOR_VENDOR=VMwareVMware FIRMWARE_VIRTUALIZATION_ENABLED=1 RESULT=ok"
+    }
+  },
+  "timings": {
+    "linked_clone_only_no_start_ms": 1844,
+    "create_plus_first_boot_ms": 228475,
+    "wait_ready_warm_vm_s": 3.0,
+    "exec_roundtrip_s": 6.1,
+    "exec_env_roundtrip_s": 6.0,
+    "exec_timeout_enforced_s": 9.2,
+    "state_desktop_s": 8.2,
+    "state_login_s": 11.0,
+    "state_bsod_s": 12.3,
+    "state_hang_s": 15.7,
+    "reset_after_bsod_ms": 3981,
+    "reset_after_hang_ms": 3746,
+    "reset_after_login_ms": 4494,
+    "base_verify_deep_s": 254
+  },
+  "results": {
+    "create": "linked clone from snapshot base (1.8 s clone, then first boot + ready snapshot)",
+    "exec": "exit_code 0; stdout: 'BVMENV-EXEC-OK', 'blook-base\\blook', Windows version banner",
+    "exec_env": "exit_code 0; stdout 'guest=guest-42' (--env BLOOK_VM_GUEST=guest-42)",
+    "exec_timeout": "timed_out: true, killed, artifacts pulled",
+    "state_desktop": "desktop (tools running)",
+    "state_login": "login - 'dominant blue framebuffer with light text but a live guest (logon UI)'",
+    "state_bsod": "bsod - 'bugcheck text detected in OCR'; frame OCR: 'Your device ran into a problem ... Stop code: DRIVER IRQL NOT LESS OR EQUAL (0xD1)' + 0x00000000810CB10C",
+    "state_hang": "hang - 'framebuffer unchanged over 3 samples and the guest stopped responding' (unchanged_samples=2)",
+    "reset": "strategy=snapshot, ok=true, ~4 s (target < 20 s)",
+    "deep_verify": "21/22 checks green at capture time; the last one ('kernel debug over serial') was a check bug (bcdedit /enum does not print debugport) and is fixed by reading 'bcdedit /dbgsettings'"
+  },
+  "artifacts": {
+    "00-doctor.json": "bvmenv.doctor.v1",
+    "01-base-verify-fast.json": "host-side base checks",
+    "02-base-verify-deep.json": "live guest contract (from the earlier capture)",
+    "03-create.json": "bvmenv.create.v1",
+    "04-wait-ready.json": "bvmenv.wait-ready.v1",
+    "05-exec.txt": "guest stdout/stderr/exit code",
+    "05b-exec-env.txt": "--env injection",
+    "06-exec-timeout.json": "timeout enforcement",
+    "10-desktop.png": "frame captured on the running guest",
+    "11-login.png + 11-state-login.json": "logon UI classification (not a false BSOD)",
+    "13-bsod.png + 13-state-bsod.json": "real bugcheck (KeBugCheckEx driver), stop code in OCR",
+    "14-reset-after-bsod.json": "recovery",
+    "16-hang.png + 16-state-hang.json": "real hard hang (HIGH_LEVEL spin driver)",
+    "17-reset-after-hang.json": "recovery",
+    "19-final.png + 19-state-final.json": "healthy state after recoveries"
+  },
+  "notes": [
+    "Classification of the logon UI required host-side corroboration: a blue frame with light text is 'login' when the guest is alive, and only a bugcheck when the guest stopped answering. Regression fixtures: tests/fixtures/{login-screen,boot-black,desktop-shell,desktop-setup}.png.",
+    "Guest command execution works with or without an interactive session: the SYSTEM scheduled-task fallback means a logon/lock UI clone is still usable for kernel tests.",
+    "Create measurements were taken while other owners were booting clones on the same host (worst case); an idle host is faster."
+  ]
+}

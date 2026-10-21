@@ -1,0 +1,85 @@
+=== state-desktop : exit=0 12.1s ===
+{
+  "guest_queryable": true,
+  "hang": {
+    "samples": 3,
+    "suspected": false,
+    "unchanged_samples": 1
+  },
+  "ip": null,
+  "log": {
+    "issues": [
+      {
+        "level": "warning",
+        "message": "2026-10-21T05:08:38.960Z -INFO vmware-vmx.exe 3080 [ws@4413 threadName=\"vmx\"] DISKUTILWIN32: DiskUtilW32IsATASSDDevice: Failed to send ATA IDENTIFY command to the target device.",
+        "source": "vmware.log"
+      },
+      {
+        "level": "error",
+        "message": "2026-10-21T05:09:07.257Z -ERROR vmware-vmx.exe 3080 [ws@4413 threadName=\"vmx\"] DISKLIB-LIB_CREATE   : DiskLibObjNotifySnapshot: Failed to get info: no handle.",
+        "source": "vmware.log"
+      }
+    ]
+  },
+  "power": "on",
+  "sampled_at": "2026-10-21T05:12:55Z",
+  "schema": "bvmenv.state.v1",
+  "screen": {
+    "classification": "desktop",
+    "confidence": 0.80000000000000004,
+    "ocr_text": "时加\r\n\r\n",
+    "reason": "guest operations responded to a ping",
+    "screenshot": "C:\\blook-vms\\_cache\\shots\\vm-evidence-20261021T051256Z.png",
+    "stop_code": null
+  },
+  "tools": {
+    "running": true,
+    "state": "running",
+    "version": "13313"
+  },
+  "uptime_seconds": null,
+  "vm": "vm-evidence",
+  "vmx": "C:\\blook-vms\\vms\\vm-evidence\\vm-evidence.vmx"
+}
+{
+  "guest_queryable": true,
+  "hang": {
+    "samples": 3,
+    "suspected": false,
+    "unchanged_samples": 1
+  },
+  "ip": null,
+  "log": {
+    "issues": [
+      {
+        "level": "warning",
+        "message": "2026-10-21T05:08:38.960Z -INFO vmware-vmx.exe 3080 [ws@4413 threadName=\"vmx\"] DISKUTILWIN32: DiskUtilW32IsATASSDDevice: Failed to send ATA IDENTIFY command to the target device.",
+        "source": "vmware.log"
+      },
+      {
+        "level": "error",
+        "message": "2026-10-21T05:09:07.257Z -ERROR vmware-vmx.exe 3080 [ws@4413 threadName=\"vmx\"] DISKLIB-LIB_CREATE   : DiskLibObjNotifySnapshot: Failed to get info: no handle.",
+        "source": "vmware.log"
+      }
+    ]
+  },
+  "power": "on",
+  "sampled_at": "2026-10-21T05:12:55Z",
+  "schema": "bvmenv.state.v1",
+  "screen": {
+    "classification": "desktop",
+    "confidence": 0.80000000000000004,
+    "ocr_text": "时加\r\n\r\n",
+    "reason": "guest operations responded to a ping",
+    "screenshot": "C:\\blook-vms\\_cache\\shots\\vm-evidence-20261021T051256Z.png",
+    "stop_code": null
+  },
+  "tools": {
+    "running": true,
+    "state": "running",
+    "version": "13313"
+  },
+  "uptime_seconds": null,
+  "vm": "vm-evidence",
+  "vmx": "C:\\blook-vms\\vms\\vm-evidence\\vm-evidence.vmx"
+}

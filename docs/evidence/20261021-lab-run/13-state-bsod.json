@@ -1,0 +1,37 @@
+{
+  "guest_queryable": true,
+  "hang": {
+    "samples": 3,
+    "suspected": false,
+    "unchanged_samples": 1
+  },
+  "ip": null,
+  "log": {
+    "issues": [
+      {
+        "level": "warning",
+        "message": "2026-10-21T05:15:45.610Z -INFO vmware-vmx.exe 7088 [ws@4413 threadName=\"vmx\"] DISKUTILWIN32: DiskUtilW32IsATASSDDevice: Failed to send ATA IDENTIFY command to the target device.",
+        "source": "vmware.log"
+      }
+    ]
+  },
+  "power": "on",
+  "sampled_at": "2026-10-21T05:26:15Z",
+  "schema": "bvmenv.state.v1",
+  "screen": {
+    "classification": "bsod",
+    "confidence": 0.97999999999999998,
+    "ocr_text": "0x00000000810CB10C\r\nOxFFFFBFOF9ASC9850\r\n0x0000000000000000\r\n0x0000000000000000\r\n\r\nYour device ran into a problem and needs to restart.\r\nYou can restart.\r\n\r\nStop code: DRIVER IRQL NOT LESS OR EQUAL (0xD1)\r\n",
+    "reason": "bugcheck text detected in OCR",
+    "screenshot": "C:\\blook-vms\\_cache\\shots\\vm-evidence-20261021T052616Z.png",
+    "stop_code": null
+  },
+  "tools": {
+    "running": false,
+    "state": "installed",
+    "version": "13313"
+  },
+  "uptime_seconds": null,
+  "vm": "vm-evidence",
+  "vmx": "C:\\blook-vms\\vms\\vm-evidence\\vm-evidence.vmx"
+}

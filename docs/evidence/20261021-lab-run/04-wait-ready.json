@@ -1,0 +1,13 @@
+=== wait-ready : exit=0 7.6s ===
+{
+  "name": "vm-evidence",
+  "ok": true,
+  "schema": "bvmenv.wait-ready.v1",
+  "timeout_s": 300
+}
+{
+  "name": "vm-evidence",
+  "ok": true,
+  "schema": "bvmenv.wait-ready.v1",
+  "timeout_s": 300
+}

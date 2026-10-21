@@ -10,7 +10,8 @@
 # script. No dry runs: every artifact comes from this host's VMware.
 param(
     [string]$Vm = 'vm-evidence',
-    [string]$Out = ''
+    [string]$Out = '',
+    [switch]$SkipDeepVerify
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,7 +57,7 @@ function Invoke-Bvmenv {
     $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
     $stderrTask = $proc.StandardError.ReadToEndAsync()
     if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
-        try { $proc.Kill($true) } catch { }
+        try { $proc.Kill() } catch { }
         Step "  TIMEOUT after ${TimeoutSeconds}s; killed"
         return @{ Code = -1; Out = ''; Err = ''; TimedOut = $true }
     }
@@ -96,8 +97,12 @@ $null = Save '00-doctor.json' $r
 Step '2. base image contract: fast + deep'
 $r = Timed 'base-verify-fast' @('base', 'verify', '--json') 120
 $null = Save '01-base-verify-fast.json' $r
-$r = Timed 'base-verify-deep' @('base', 'verify', '--deep', '--json') 900
-$null = Save '02-base-verify-deep.json' $r
+if ($SkipDeepVerify) {
+    Step 'base verify --deep skipped (--SkipDeepVerify)'
+} else {
+    $r = Timed 'base-verify-deep' @('base', 'verify', '--deep', '--json') 1200
+    $null = Save '02-base-verify-deep.json' $r
+}
 
 Step "3. linked clone $Vm from snapshot 'base'"
 $r = Timed 'create' @('create', $Vm, '--json') 300

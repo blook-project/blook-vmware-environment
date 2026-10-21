@@ -58,7 +58,8 @@ bool has_any(const std::string& text, const std::vector<std::string>& markers) {
 std::string extract_stop_code(const std::string& text) {
     // 1) "STOP CODE: DRIVER_IRQL_NOT_LESS_OR_EQUAL" (any locale using ':' or '：')
     static const std::regex stop_code_re(
-        R"((?:STOP\s*CODE|stop\s*code|错误代码|停止代码|终止代码)\s*[:：]\s*([A-Za-z0-9_]+))");
+        R"((?:STOP\s*CODE|错误代码|停止代码|终止代码)\s*[:：]\s*([A-Za-z0-9_]+))",
+        std::regex::icase);
     // 2) bare bugcheck constant, e.g. 0x000000D1 / 0xC000021A
     static const std::regex hex_re(R"(\b0x[0-9A-Fa-f]{8}\b)");
     // 3) known symbolic bugcheck names when OCR splits the line

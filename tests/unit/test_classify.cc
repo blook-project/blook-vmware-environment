@@ -118,6 +118,14 @@ TEST(StopCode, ExtractsStopCodeLine) {
               "KMODE_EXCEPTION_NOT_HANDLED");
 }
 
+TEST(StopCode, ExtractsMixedCaseOcrStopCode) {
+    // Real OCR output from a live bugcheck frame (captured by scripts/demo-e2e.ps1):
+    //   "Stop code: DRIVER IRQL NOT LESS OR EQUAL (0xD1)"
+    EXPECT_EQ(extract_stop_code("Your device ran into a problem and needs to restart.\n"
+                                "Stop code: DRIVER IRQL NOT LESS OR EQUAL (0xD1)"),
+              "DRIVER");
+}
+
 TEST(StopCode, ExtractsHexWithoutLabel) {
     EXPECT_EQ(extract_stop_code("bugcheck 0x0000009F (0x3, ...)"), "0x0000009F");
 }

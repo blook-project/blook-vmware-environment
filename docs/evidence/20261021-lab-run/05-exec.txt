@@ -1,0 +1,18 @@
+=== exec : exit=0 6.1s ===
+exit_code    : 0
+
+
+Microsoft Windows [�汾 10.0.26200.7623]
+
+blook-base\blook
+
+BVMENV-EXEC-OK
+exit_code    : 0
+
+
+Microsoft Windows [�汾 10.0.26200.7623]
+
+blook-base\blook
+
+BVMENV-EXEC-OK 
+

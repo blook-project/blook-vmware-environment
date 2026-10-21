@@ -55,6 +55,12 @@
     },
     {
       "base": false,
+      "name": "verify-20261021T050231Z",
+      "power": "on",
+      "vmx": "C:\\blook-vms\\vms\\verify-20261021T050231Z\\verify-20261021T050231Z.vmx"
+    },
+    {
+      "base": false,
       "name": "vm-drv",
       "power": "on",
       "vmx": "C:\\blook-vms\\vms\\vm-drv\\vm-drv.vmx"
@@ -74,7 +80,7 @@
     {
       "base": false,
       "name": "vm-kchannel",
-      "power": "on",
+      "power": "off",
       "vmx": "C:\\blook-vms\\vms\\vm-kchannel\\vm-kchannel.vmx"
     },
     {
