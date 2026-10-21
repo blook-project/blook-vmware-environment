@@ -68,3 +68,19 @@ dump): the failure mode is host memory/IO starvation, not a guest bug.
 unless `--allow-many` is passed, and `bvmenv doctor` reports the running count,
 their memory footprint and free host RAM. Stale forks left by a host reboot are
 removed with `bvmenv delete <vm> --force` (only when no `vmware-vmx` holds them).
+
+## Host precondition: only one VMM driver
+
+Before any VM test, check that no other hypervisor VMM driver is running:
+
+```powershell
+bvmenv doctor        # "no other hypervisor VMM driver running" must be ok
+bvmenv host-prep     # stops MuMuVMMDrv / VBox* / Nemu* (falls back to gsudo)
+```
+
+On 2026-10-21 the host froze twice (Kernel-Power 41, no dump) because MuMu
+emulator's VirtualBox-based `MuMuVMMDrv` was loaded alongside VMware's `vmx86`.
+The symptom is VMs losing VMware Tools heartbeats and then the host dying - it is
+NOT a VM-count problem. `MuMuVMMDrv` is now `start=demand`; if MuMu is needed
+later, `sc config MuMuVMMDrv start= system` brings it back at boot, and
+`bvmenv host-prep` stops it again before VMware work.

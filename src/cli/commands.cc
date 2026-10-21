@@ -97,16 +97,47 @@ void print_exec(const ExecResult& result, bool json) {
 // ---------------------------------------------------------------------------
 // commands
 // ---------------------------------------------------------------------------
+namespace {
+
+// The compiled version comes from BVMENV_VERSION at configure time, so a local
+// build prints the default "0.1.0" even when the tree is newer - confusing while
+// debugging. Prefer a version.txt shipped next to the binary or in the repo root
+// (up to five levels), and fall back to the compiled value.
+std::string resolve_version() {
+    const std::string compiled = BVMENV_VERSION;
+    wchar_t buffer[1024];
+    const DWORD len = GetModuleFileNameW(nullptr, buffer, static_cast<DWORD>(std::size(buffer)));
+    if (len == 0)
+        return compiled;
+    fs::path dir = fs::path(buffer).parent_path();
+    std::error_code ec;
+    for (int depth = 0; depth < 5 && !dir.empty(); ++depth) {
+        const fs::path candidate = dir / "version.txt";
+        if (fs::exists(candidate, ec)) {
+            std::string text = read_text(candidate);
+            while (!text.empty() && (text.back() == '\n' || text.back() == '\r' ||
+                                     text.back() == ' ' || text.back() == '\t'))
+                text.pop_back();
+            if (!text.empty())
+                return text;
+        }
+        dir = dir.parent_path();
+    }
+    return compiled;
+}
+
+}  // namespace
+
 int cmd_version(Context& ctx) {
     json::Value out(json::Object{});
     out["name"] = std::string("bvmenv");
-    out["version"] = std::string(BVMENV_VERSION);
+    out["version"] = resolve_version();
     out["vmware_dir"] = to_utf8(ctx.config.vmware_dir.wstring());
     out["vm_root"] = to_utf8(ctx.config.vm_root.wstring());
     if (ctx.json) {
         std::printf("%s\n", out.dump(2).c_str());
     } else {
-        std::printf("bvmenv %s\n", BVMENV_VERSION);
+        std::printf("bvmenv %s\n", resolve_version().c_str());
     }
     return 0;
 }
@@ -703,7 +734,7 @@ std::string kd_pipe_name(const std::string& vm) {
 }
 
 std::string kd_command_line(const fs::path& kd, const std::string& pipe) {
-    return to_utf8(kd.wstring()) + " -k com:pipe,port=" + pipe + ",resets=0,reconnect";
+    return to_utf8(kd.wstring()) + " -k com:pipe,port=" + pipe + ",resets=0";
 }
 
 }  // namespace
@@ -745,6 +776,55 @@ void write_stdin(HANDLE in, const std::string& text) {
 
 }  // namespace
 
+int cmd_host_prep(Context& ctx, const ParsedArgs& args) {
+    // Stop other hypervisor VMM drivers (MuMu/VirtualBox/Nemu) before running VM
+    // tests: two type-2 VMMs at once froze this host twice.
+    (void)args;
+    json::Value out(json::Object{});
+    out["schema"] = std::string("bvmenv.host-prep.v1");
+    json::Value actions(json::Array{});
+    std::vector<std::string> lines;
+    bool ok = true;
+    for (const auto& driver : ctx.lab.other_vmm_drivers()) {
+        if (!driver.running)
+            continue;
+        ProcessOptions stop;
+        stop.command_line = L"sc stop " + to_wide(driver.name);
+        stop.timeout = std::chrono::seconds(30);
+        ProcessResult result = run_process(stop);
+        std::string how = "sc stop";
+        if (result.exit_code != 0) {
+            const std::wstring gsudo = find_executable(L"gsudo");
+            if (!gsudo.empty()) {
+                stop.command_line = gsudo + L" -d sc stop " + to_wide(driver.name);
+                result = run_process(stop);
+                how = "gsudo -d sc stop";
+            }
+        }
+        const bool stopped = result.exit_code == 0;
+        json::Value action(json::Object{});
+        action["driver"] = driver.name;
+        action["previous_state"] = driver.state;
+        action["stopped"] = stopped;
+        action["via"] = how;
+        action["output"] = trim(result.out + result.err);
+        lines.push_back(driver.name + (stopped ? ": stopped via " : ": FAILED to stop via ") + how);
+        actions.push(std::move(action));
+        if (!stopped)
+            ok = false;
+    }
+    out["actions"] = actions;
+    out["ok"] = ok;
+    if (ctx.json) {
+        std::printf("%s\n", out.dump(2).c_str());
+    } else {
+        for (const auto& line : lines)
+            std::printf("%s\n", line.c_str());
+        std::printf("host-prep %s\n", ok ? "ok" : "incomplete (run as administrator)");
+    }
+    return ok ? 0 : 1;
+}
+
 int cmd_kd_pipe(Context& ctx, const ParsedArgs& args) {
     // Convert an EXISTING fork to (or from) named-pipe KD without recreating it.
     // Owners already have forks created without --kd-pipe; this rewrites serial0
@@ -769,7 +849,7 @@ int cmd_kd_pipe(Context& ctx, const ParsedArgs& args) {
         vmx.set("serial0.present", "TRUE");
         vmx.set("serial0.fileType", "pipe");
         vmx.set("serial0.fileName", kd_pipe_name(name));
-        vmx.set("serial0.pipe.endPoint", "server");
+        vmx.set("serial0.pipe.endPoint", "client");
         vmx.remove("serial0.tryNoRxLoss");
         vmx.remove("serial0.yieldOnMsrRead");
     } else {
@@ -976,7 +1056,7 @@ int cmd_kd(Context& ctx, const ParsedArgs& args) {
 }
 
 void print_help() {
-    std::cout << R"(bvmenv )" << BVMENV_VERSION
+    std::cout << R"(bvmenv )" << resolve_version()
               << R"( - VMware Workstation lab for Windows kernel tests
 
 Usage: bvmenv [--json] [--verbose] <command> [options]
@@ -1013,7 +1093,7 @@ End-to-end runner (used by downstream projects, contract in docs/e2e.md)
              [--out <dir>] [--reset-on failure|always|never] [--wait-timeout N]
 
 Diagnostics
-  doctor [--json]     selftest [--json]     version
+  doctor [--json]    host-prep [--json]    selftest [--json]    version
 
 Environment: BVMENV_VM_ROOT (default C:\blook-vms), BVMENV_VMWARE_DIR,
              BVMENV_WINDOWS_ISO, BVMENV_GUEST_USER/PASSWORD, BVMENV_OCR_COMMAND,

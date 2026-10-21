@@ -454,12 +454,35 @@ void Vmware::run_script(const std::string& vm, const std::string& script,
 }
 
 void Vmware::guest_mkdirs(const std::string& vm, const std::string& guest_dir) {
-    // NOTE: must not go through run()/run_once() - run_once() calls this method to
-    // create its own job directory, so routing it back through run() recurses
-    // until the stack overflows. Creating directories stays on the plain script
-    // path; the SYSTEM fallback for exec covers the command itself.
-    run_script(vm, "if not exist \"" + guest_dir + "\" mkdir \"" + guest_dir + "\"",
-               std::chrono::seconds(60));
+    // Directory creation must work without a user session (a guest parked at the
+    // logon/lock UI still has to accept a pushed bundle) and must NOT go through
+    // run()/run_once(), which calls this method for its own job directory -
+    // routing it back through run() recursed until the stack overflowed (0.1.9).
+    // VIX `createDirectoryInGuest` is a guest-file operation: credentials only.
+    std::string current;
+    size_t index = 0;
+    while (index <= guest_dir.size()) {
+        const size_t next = guest_dir.find('\\', index);
+        const size_t end = next == std::string::npos ? guest_dir.size() : next;
+        current = guest_dir.substr(0, end);
+        if (current.size() > 2 && current.back() != ':') {
+            const ProcessResult r =
+                vmrun({L"-gu", widen(cfg_.guest_user), L"-gp", widen(cfg_.guest_password),
+                       L"createDirectoryInGuest", vmx_wide(vm), widen(current)},
+                      std::chrono::seconds(60));
+            if (r.exit_code != 0) {
+                // "already exists" is fine; anything else is a real failure.
+                const std::string text = to_lower(r.out + r.err);
+                if (text.find("already exists") == std::string::npos &&
+                    text.find("file exists") == std::string::npos) {
+                    throw Error("guest mkdir failed for " + current + ": " + trim(r.out + r.err));
+                }
+            }
+        }
+        if (next == std::string::npos)
+            break;
+        index = next + 1;
+    }
 }
 
 void Vmware::copy_to_guest(const std::string& vm, const fs::path& local,

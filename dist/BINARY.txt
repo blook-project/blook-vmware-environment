@@ -1,1 +1,1 @@
-latest stable build: bvmenv-c6afbe2.exe (git c6afbe2, version 0.1.11)
+latest stable build: bvmenv-6e83eb6.exe (git 6e83eb6, version 0.1.12) - do not use 0.1.9-0.1.11 for guest ops

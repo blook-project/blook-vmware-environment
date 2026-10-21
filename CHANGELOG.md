@@ -4,6 +4,32 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.13] - 2026-10-21
+
+### Added
+
+- **Host precondition check** (root cause of the 2026-10-21 host freeze): `doctor`
+  now scans for other hypervisor VMM drivers (`MuMuVMMDrv`, `VBox*`, `Nemu*`) and
+  fails the check plus warns when one is RUNNING, with the fix in the message.
+  Two type-2 VMMs at once (MuMu's VirtualBox-based `MuMuVMMDrv` alongside
+  VMware's `vmx86`) is what killed tool heartbeats and froze the host twice
+  (Kernel-Power 41, no dump) - not VM count.
+- `bvmenv host-prep [--json]` stops those drivers (`sc stop`, falling back to
+  `gsudo -d sc stop`), and reports what it did (`bvmenv.host-prep.v1`). Run it
+  before VM tests; MuMu stays available later via `sc config MuMuVMMDrv start= system`.
+- `bvmenv kd-stacks <vm> [--commands "..."] [--break-after N]`: attach and
+  continue for N seconds (default 30), then reconnect and break in to dump every
+  thread (`!thread; ~* kv; q` by default) - the post-hang evidence path.
+
+### Fixed
+
+- `guest_mkdirs` now uses VIX `createDirectoryInGuest` (a guest-file operation
+  that needs credentials, not a user session). Push/bundle staging therefore
+  works on a guest parked at the logon/lock UI **without** the 0.1.9 recursion.
+- `bvmenv --version` prefers the `version.txt` shipped next to the binary (or in
+  the repo root), so local builds no longer report the compile-time default
+  `0.1.0` while the tree is at a newer version.
+
 ## [0.1.12] - 2026-10-21
 
 ### Fixed

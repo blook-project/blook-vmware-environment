@@ -65,6 +65,16 @@ struct BaseVerifyReport {
     [[nodiscard]] json::Value to_json() const;
 };
 
+// Another type-2 hypervisor VMM driver running alongside VMware's vmx86 is a
+// known cause of the host freeze this lab hit twice (Kernel-Power 41, no dump):
+// MuMu emulator's MuMuVMMDrv, VirtualBox's VBox*, Nemu*. Scan for them and stop
+// them before running VM tests (`bvmenv host-prep`).
+struct VmmDriver {
+    std::string name;
+    std::string state;
+    bool running = false;
+};
+
 class Lab {
    public:
     Lab(Config cfg, Vmware& vmware) : cfg_(std::move(cfg)), vmware_(vmware) {}
@@ -87,6 +97,7 @@ class Lab {
     void base_build(const BaseBuildOptions& options);
     // Machine-readable snapshot of the host/toolchain state (`bvmenv doctor`).
     json::Value doctor();
+    [[nodiscard]] std::vector<VmmDriver> other_vmm_drivers() const;
 
     // ---- misc ------------------------------------------------------------
     // Forces a real bugcheck through the i8042 keyboard controller

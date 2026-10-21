@@ -133,15 +133,26 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
         return cmd_key(ctx, parse_args(rest, boolean_flags));
     if (command == "kd-pipe")
         return cmd_kd_pipe(ctx, parse_args(rest, boolean_flags));
-    if (command == "kd" || command == "kd-log") {
+    if (command == "kd" || command == "kd-log" || command == "kd-stacks") {
         ParsedArgs kd_args = parse_args(rest, boolean_flags);
-        if (command == "kd-log")
+        if (command == "kd-log" || command == "kd-stacks")
             kd_args.flags["log"] = "1";
+        if (command == "kd-stacks") {
+            // Attach-and-continue for `--break-after` seconds (default 30), then
+            // reconnect and break in to dump every thread's stack - the post-hang
+            // evidence path for a frozen hypervisor or a deadlocked DriverEntry.
+            if (kd_args.flags.find("commands") == kd_args.flags.end())
+                kd_args.flags["commands"] = "!thread; ~* kv; q";
+            if (kd_args.flags.find("break-after") == kd_args.flags.end())
+                kd_args.flags["break-after"] = "30";
+        }
         return cmd_kd(ctx, kd_args);
     }
 
     if (command == "crash")
         return cmd_crash(ctx, parse_args(rest, boolean_flags));
+    if (command == "host-prep")
+        return cmd_host_prep(ctx, parse_args(rest, boolean_flags));
     if (command == "doctor")
         return cmd_doctor(ctx, parse_args(rest, boolean_flags));
     if (command == "selftest")

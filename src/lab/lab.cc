@@ -150,10 +150,12 @@ VmInfo Lab::create(const CreateOptions& options) {
     vmx.remove("ethernet0.generatedAddress");
     vmx.remove("ethernet0.generatedAddressOffset");
     if (options.kd_pipe) {
-        // Named pipe KD: VMware is the pipe server, kd.exe the client.
+        // Named pipe KD: VMware is the pipe CLIENT and kd.exe creates the server
+        // (client mode). With VMware as the server an absent/slow client can
+        // block a vCPU - that correlates with the host freezes of 2026-10-21.
         vmx.set("serial0.fileType", "pipe");
         vmx.set("serial0.fileName", "\\\\.\\pipe\\blook-" + options.name + "-kd");
-        vmx.set("serial0.pipe.endPoint", "server");
+        vmx.set("serial0.pipe.endPoint", "client");
         vmx.remove("serial0.tryNoRxLoss");
         vmx.remove("serial0.yieldOnMsrRead");
     } else {
@@ -1185,9 +1187,46 @@ json::Value Lab::doctor() {
     out["free_ram_mb"] = free_ram_mb;
     out["max_running_vms"] = cfg_.max_running_vms;
     checks.emplace_back("running managed VMs within budget", running <= cfg_.max_running_vms);
+
+    json::Value warnings(json::Array{});
+
+    // Host precondition: no second VMM driver (root cause of the 2026-10-21 freeze).
+    json::Value vmm(json::Array{});
+    bool vmm_conflict = false;
+    for (const auto& driver : other_vmm_drivers()) {
+        json::Value entry(json::Object{});
+        entry["name"] = driver.name;
+        entry["state"] = driver.state;
+        entry["running"] = driver.running;
+        vmm.push(std::move(entry));
+        if (driver.running)
+            vmm_conflict = true;
+    }
+    // A KD pipe on a running guest with no kd attached can block a vCPU; that
+    // pattern correlates with the 2026-10-21 host freezes.
+    json::Value kd_pipe_running(json::Array{});
+    for (const auto& vm : vmware_.list()) {
+        if (vm.power != PowerState::On)
+            continue;
+        try {
+            const Vmx vmx = Vmx::load(fs::path(to_wide(vm.vmx)));
+            if (to_lower(vmx.get("serial0.fileType")) == "pipe") {
+                kd_pipe_running.push(vm.name);
+            }
+        } catch (...) {
+        }
+    }
+    out["kd_pipe_running"] = std::move(kd_pipe_running);
+    out["other_vmm_drivers"] = std::move(vmm);
+    out["vmm_conflict"] = vmm_conflict;
+    checks.emplace_back("no other hypervisor VMM driver running", !vmm_conflict);
+    if (vmm_conflict) {
+        warnings.push(
+            std::string("another hypervisor VMM driver is RUNNING; stop it before VM "
+                        "tests with `bvmenv host-prep` - it can freeze the host"));
+    }
     // Low free RAM is a warning, not a refusal: the budget is a guard rail, not
     // a claim that VM count is the only possible cause of a host freeze.
-    json::Value warnings(json::Array{});
     if (free_ram_mb > 0 && free_ram_mb < 8192) {
         warnings.push(std::string("free host RAM below 8 GB (") + std::to_string(free_ram_mb) +
                       " MB) with " + std::to_string(running) + " managed VM(s) running");
@@ -1218,6 +1257,29 @@ json::Value Lab::doctor() {
         out["vms_error"] = e.what();
     }
     out["vms"] = std::move(vms);
+    return out;
+}
+
+std::vector<VmmDriver> Lab::other_vmm_drivers() const {
+    // Two type-2 hypervisor VMMs at once freeze this host; surface it loudly.
+    static const char* kNames[] = {"MuMuVMMDrv", "VBoxDrv", "VBoxNetAdp", "VBoxNetLfw",
+                                   "VBoxNetLwf", "NemuDrv", "Nemu"};
+    std::vector<VmmDriver> out;
+    for (const char* name : kNames) {
+        ProcessOptions options;
+        options.command_line = std::wstring(L"sc query ") + to_wide(name);
+        options.timeout = std::chrono::seconds(10);
+        const ProcessResult result = run_process(options);
+        if (result.exit_code != 0)
+            continue;  // driver not installed
+        VmmDriver driver;
+        driver.name = name;
+        const std::string text = result.out + result.err;
+        const size_t pos = text.find("STATE");
+        driver.state = pos == std::string::npos ? std::string() : trim(text.substr(pos));
+        driver.running = driver.state.find("RUNNING") != std::string::npos;
+        out.push_back(driver);
+    }
     return out;
 }
 
