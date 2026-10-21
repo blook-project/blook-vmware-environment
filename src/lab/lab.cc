@@ -725,20 +725,45 @@ void Lab::base_build(const BaseBuildOptions& options) {
     ensure_dir(dir);
     const fs::path vhd = dir / "blook-base.vhd";
     const fs::path vmdk = dir / "blook-base.vmdk";
-    if (file_exists(cfg_.base_vmx())) {
-        if (!options.force) {
-            throw Error("base image already exists at " + to_utf8(cfg_.base_vmx().wstring()) +
-                        " (use --force to rebuild)");
-        }
+    if (options.force) {
+        // A partial previous attempt may leave a VHD/VMDK behind without a vmx,
+        // and diskpart refuses to create a VHD that already exists: wipe the
+        // whole base directory whenever a rebuild is requested.
         try {
             vmware_.stop("base", true);
         } catch (...) {
         }
         remove_tree(dir);
         ensure_dir(dir);
+    } else if (file_exists(cfg_.base_vmx())) {
+        throw Error("base image already exists at " + to_utf8(cfg_.base_vmx().wstring()) +
+                    " (use --force to rebuild)");
     }
 
     // 1. VHD with one active NTFS partition.
+    //
+    // Safety: the lab only ever creates/detaches blook-base.vhd (inside
+    // BVMENV_VM_ROOT) by explicit path. If V: is occupied, or if one of our
+    // images is still attached, the operator is told to fix it - the tool never
+    // enumerates host disks or detaches anything it does not own.
+    if (file_exists(L"V:\\")) {
+        throw Error(
+            "drive V: is already in use; refusing to touch an unknown volume. Dismount it, or "
+            "detach our own image with an explicit path: diskpart \"select vdisk "
+            "file=\\\"<BVMENV_VM_ROOT>\\\\base\\\\blook-base.vhd\\\"\" + \"detach vdisk noerr\"");
+    }
+    if (is_owned_vhd_path(cfg_.vm_root, vhd)) {
+        // Best effort, allowlisted, explicit path only: a previous crashed build
+        // may have left our own VHD attached.
+        if (file_exists(vhd)) {
+            try {
+                detach_own_vhd(cfg_, vhd);
+            } catch (const std::exception& e) {
+                throw Error(std::string("could not detach the previous base VHD: ") + e.what() +
+                            " (detach it manually by explicit path, then re-run)");
+            }
+        }
+    }
     const fs::path dp_create = cfg_.cache_dir() / "diskpart-create.txt";
     std::string dp_script;
     dp_script += "create vdisk file=\"" + to_utf8(vhd.wstring()) +
@@ -945,6 +970,17 @@ json::Value Lab::doctor() {
     checks.emplace_back("OCR engine available", !tesseract.empty() || !cfg_.ocr_command.empty());
 
     out["checks"] = checks_json(checks);
+
+    // Host disk safety: read-only report of attached file-backed virtual disks.
+    // bvmenv only detaches its own images by explicit path; a stale attachment
+    // is still worth surfacing because it blocks `base build`.
+    json::Value attached(json::Array{});
+    for (const auto& entry : attached_file_backed_vhds())
+        attached.push(json::Value(entry));
+    out["attached_vhds"] = std::move(attached);
+    checks.emplace_back("no file-backed virtual disks attached to the host",
+                        out["attached_vhds"].items().empty());
+
     out["ok"] = std::all_of(checks.begin(), checks.end(), [](const auto& c) { return c.second; });
     std::string version_error;
     out["config_ok"] = cfg_.validate(&version_error);

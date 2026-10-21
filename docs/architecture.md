@@ -97,6 +97,35 @@ provisioning puts there.
   the guest OS cannot answer — VIX's `captureScreen` is a guest operation and
   requires VMware Tools, which is exactly what is missing on a BSOD.
 
+## Timeouts, orphan killing and host safety
+
+* Every external process (`vmrun`, `vmcli`, `vmware-vdiskmanager`, `diskpart`,
+  `dism`, `bcdboot`, `powershell`, `tesseract`) is spawned by `run_process`,
+  which:
+  * starts the child **suspended**, assigns it to a Job Object with
+    `KILL_ON_JOB_CLOSE`, then resumes it, so a timeout kills the whole tree
+    (including grandchildren such as VMware helper processes);
+  * reads stdout/stderr through `PeekNamedPipe` with a stop flag. A blocking
+    `ReadFile` used to hang forever when a grandchild inherited the pipe handle
+    — this was the cause of 45+ minute hangs in an early build;
+  * applies a default wall-clock timeout (`BVMENV_CMD_TIMEOUT_MS`, 300 s) to any
+    command that does not pass its own;
+  * logs command line + duration + exit code when `--verbose` is on
+    (`<vm_root>\bvmenv.log`).
+* `wait-ready` never relies on a blocking guest call: it fails fast for an
+  unknown VM name or a powered-off VM, polls the VMware Tools state every second
+  and only then probes guest operations with a 20 s bound.
+* **No host execution.** Guest operations are the only way commands run; there
+  is no host-mode fallback. Kernel code under test only ever runs inside the
+  guest.
+* **Host disk safety.** bvmenv may only create/attach/detach its own images
+  (`blook-base.vhd`, `answer.vhd`) inside `BVMENV_VM_ROOT`, by explicit path
+  (`select vdisk file="..."` + `detach vdisk noerr`). It never enumerates host
+  disks and never uses `select disk N`. Detaching anything else throws before a
+  single disk command runs; `tests/unit/test_safety.cc` pins that allowlist,
+  including the real incident (`C:\DevDrive.vhdx` must be rejected).
+  `bvmenv doctor` reports attached file-backed virtual disks read-only.
+
 ## Concurrency
 
 * `FileLock` serialises state-changing operations (`create`, `reset`, `delete`,

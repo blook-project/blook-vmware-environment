@@ -1,5 +1,35 @@
 # `bvmenv e2e` contract (`bvmenv.e2e.v1`)
 
+## Guest-only guarantee (read this first)
+
+`bvmenv` is a **hypervisor driver, not a test runner on the host**. Every
+`exec`, `push`, `pull` and `e2e` operation happens through VMware guest
+operations (`vmrun runProgramInGuest` / `copyFileFromGuestToHost`) inside a
+`bvmenv`-managed VM. There is no host execution mode, no "run on host" flag and
+no fallback path: if the guest is not reachable, the command fails.
+
+Consequences for callers:
+
+* Kernel code (drivers, hypervisors, DSE/physical-memory experiments) may only
+  be loaded inside a `bvmenv create`d VM. The lab exists to keep host crash
+  experiments off the host. A host-mode helper must never be added.
+* `bvmenv exec <vm> -- <cmd>` runs as the guest's `blook` account (local
+  administrator, UAC disabled in the base image). It runs with a full admin
+  token inside the guest and with **no** access to the host.
+* If a payload crashes the guest, the host is unaffected; `state` classifies it
+  and `reset` recovers.
+
+## Host disk safety
+
+`bvmenv` attaches/detaches only its own VHD images and refuses everything else:
+the allowlist (`is_owned_vhd_path`) accepts a path only when it is inside
+`BVMENV_VM_ROOT` and named `blook-base.vhd`/`answer.vhd`, and disk operations are
+always `select vdisk file="<explicit path>"` + `detach vdisk noerr` — never
+`select disk N` and never an enumeration of host disks. `bvmenv doctor` reports
+any attached file-backed virtual disk (`attached_vhds`) read-only. `bvmenv base
+build` refuses to start when drive `V:` is already in use rather than cleaning
+up an unknown volume.
+
 Stable interface used by `blook-kdu`, `blook-drv`, `blook-drv-lite` and
 `blook-kchannel` to run a test payload inside a lab VM and get machine readable
 results back. Treat this file as the contract: fields are only ever added, and

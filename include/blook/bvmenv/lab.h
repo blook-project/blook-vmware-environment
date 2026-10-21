@@ -13,6 +13,22 @@
 
 namespace blook::bvmenv {
 
+// ---------------------------------------------------------------------------
+// Host disk safety
+//
+// The lab attaches/detaches its own VHDs only. A bring-up helper once detached
+// the user's DevDrive by enumerating host disks, so all disk operations go
+// through these helpers: they accept a path only when it is inside
+// BVMENV_VM_ROOT and named like one of the tool's own images.
+// ---------------------------------------------------------------------------
+bool is_owned_vhd_path(const std::filesystem::path& vm_root,
+                       const std::filesystem::path& candidate);
+// Detaches exactly `vhd` (by explicit path, never by disk number). Throws when
+// the path is not owned by bvmenv.
+bool detach_own_vhd(const Config& config, const std::filesystem::path& vhd);
+// Read-only report of attached file-backed virtual disks (for `doctor`).
+std::vector<std::string> attached_file_backed_vhds();
+
 struct CreateOptions {
     std::string name;
     std::string from = "base";
