@@ -4,6 +4,18 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] - after 0.2.5
+
+### Added
+
+- `doctor` emits `recommendations`: when more than one managed VM is running it
+  asks for kernel experiments to be serialized to **one** VM (six host freezes on
+  this box, all with 2+ guests doing kernel work; single-VM runs never reproduced
+  it). Not a hard failure - the concurrency guard stays the enforcement point.
+- `docs/images.md`: freeze history table (03:36, 11:30-11:38, 15:45, 17:37,
+  17:55, 01:09) with the mitigation history (guest-only rule, MuMu VMM stopped,
+  kd-pipe disabled, VM budget, 1-VM rule).
+
 ## [0.2.5] - 2026-10-22
 
 ### Fixed

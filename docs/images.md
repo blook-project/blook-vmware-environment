@@ -198,3 +198,27 @@ A powered-on guest that stops answering is a **hang**, never `unknown`:
 `state --budget <seconds>` controls the per-sample budget (default 20 s).
 Measured on a genuinely wedged guest: `classification: "hang"` before the reboot
 that assembled its 6.4 GB dump.
+
+## Freeze history and the 1-VM rule (2026-10-21/22)
+
+Six host freezes on this machine, all Kernel-Power 41 with no dump and no WHEA:
+
+| time | context | mitigation afterwards |
+| --- | --- | --- |
+| 03:36 | host-side kernel load experiments | host kernel loads banned (guest-only rule) |
+| 11:30-11:38 | host-side kernel load experiments (x3) | same ban; `_detach-vhd` disk-safety allowlist |
+| 15:45 | 6 VMware guests, kd-probe fork up | VM budget guard introduced |
+| 17:37 | drv's kd-pipe fork active | KD-over-pipe investigated |
+| 17:55 | kchannel's kd window | `kd-pipe` disabled by default (`--unsafe-kd`) |
+| 01:09 | 3 guests, MuMu VMM driver stopped, **no kd** | kernel experiments serialized to 1 VM |
+
+MuMu's VirtualBox-based VMM driver was stopped and set to demand start (it was a
+real contributor while loaded); KD pipes were banned; the VM budget was added.
+The 01:09 freeze had none of those factors, which leaves concurrent guest-kernel
+experiments as the standing suspect on Workstation 25 - hence the rule:
+
+**Run one kernel-experiment VM at a time.** `bvmenv doctor` reports
+`recommendations` (with a message naming the running VMs) whenever more than one
+managed VM is up, and the concurrency guard remains the hard enforcement point.
+After any host restart, re-check driver services/files and test-signing residue
+before continuing.

@@ -1,1 +1,1 @@
-known-good: bvmenv-df2e2b6.exe (git df2e2b6, version 0.2.4). Dumps enabled, hang verdict for wedged guests, DSE-on SPC SHA-1 image.
+known-good: bvmenv-3add74e.exe (git 3add74e, version 0.2.5 tree + 1-VM doctor recommendation). Release of record: v0.2.5. Kernel dumps verified; hang verdict for wedged guests; DSE-on SPC SHA-1 image.

@@ -1253,6 +1253,20 @@ json::Value Lab::doctor() {
     out["max_running_vms"] = cfg_.max_running_vms;
     checks.emplace_back("running managed VMs within budget", running <= cfg_.max_running_vms);
 
+    // Freeze history (2026-10-21/22, six host freezes, Kernel-Power 41, no dump):
+    // concurrent guest-kernel experiments on VMware Workstation 25 are the last
+    // standing suspect. A recommendation, not a hard failure - the budget guard
+    // stays the enforcement point.
+    json::Value recommendations(json::Array{});
+    if (running > 1) {
+        recommendations.push(
+            std::string("kernel experiments: run ONE managed VM at a time (") +
+            std::to_string(running) +
+            " are running). Every host freeze on this box so far happened with 2+ "
+            "guest VMs doing kernel work; single-VM runs have never reproduced it.");
+    }
+    out["recommendations"] = std::move(recommendations);
+
     json::Value warnings(json::Array{});
 
     // Host precondition: no second VMM driver (root cause of the 2026-10-21 freeze).
