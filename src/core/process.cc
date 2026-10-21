@@ -17,13 +17,15 @@ namespace {
 struct JobGuard {
     HANDLE job = nullptr;
     ~JobGuard() {
-        if (job) CloseHandle(job);
+        if (job)
+            CloseHandle(job);
     }
 };
 
 HANDLE create_job() {
     HANDLE job = CreateJobObjectW(nullptr, nullptr);
-    if (!job) return nullptr;
+    if (!job)
+        return nullptr;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
     limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
     SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits));
@@ -43,21 +45,26 @@ std::string drain_pipe(HANDLE pipe, const std::atomic<bool>& stop) {
     char buffer[8192];
     for (;;) {
         DWORD available = 0;
-        if (!PeekNamedPipe(pipe, nullptr, 0, nullptr, &available, nullptr)) break;
+        if (!PeekNamedPipe(pipe, nullptr, 0, nullptr, &available, nullptr))
+            break;
         if (available == 0) {
-            if (stop.load(std::memory_order_relaxed)) break;
+            if (stop.load(std::memory_order_relaxed))
+                break;
             Sleep(5);
             continue;
         }
         DWORD read = 0;
-        const DWORD want = available < sizeof(buffer) ? available : static_cast<DWORD>(sizeof(buffer));
-        if (!ReadFile(pipe, buffer, want, &read, nullptr) || read == 0) break;
+        const DWORD want =
+            available < sizeof(buffer) ? available : static_cast<DWORD>(sizeof(buffer));
+        if (!ReadFile(pipe, buffer, want, &read, nullptr) || read == 0)
+            break;
         out.append(buffer, read);
     }
     // Final sweep for anything written between the last peek and the stop flag.
     for (;;) {
         DWORD read = 0;
-        if (!ReadFile(pipe, buffer, sizeof(buffer), &read, nullptr) || read == 0) break;
+        if (!ReadFile(pipe, buffer, sizeof(buffer), &read, nullptr) || read == 0)
+            break;
         out.append(buffer, read);
     }
     return out;
@@ -68,7 +75,8 @@ std::string drain_pipe(HANDLE pipe, const std::atomic<bool>& stop) {
 std::wstring build_command_line(const std::vector<std::wstring>& argv) {
     std::wstring out;
     for (const auto& arg : argv) {
-        if (!out.empty()) out.push_back(L' ');
+        if (!out.empty())
+            out.push_back(L' ');
         const bool needs_quotes = arg.empty() || arg.find_first_of(L" \t\"") != std::wstring::npos;
         if (!needs_quotes) {
             out += arg;
@@ -129,14 +137,16 @@ ProcessResult run_process(const ProcessOptions& options) {
     if (!options.env.empty() || !options.inherit_environment) {
         if (options.inherit_environment) {
             environment = GetEnvironmentStringsW();
-            if (!environment.empty() && environment.back() == L'\0') environment.pop_back();
+            if (!environment.empty() && environment.back() == L'\0')
+                environment.pop_back();
         }
         for (const auto& [key, value] : options.env) {
             environment += key + L"=" + value;
             environment.push_back(L'\0');
         }
         environment.push_back(L'\0');
-        if (environment.size() > 1) env_ptr = environment.data();
+        if (environment.size() > 1)
+            env_ptr = environment.data();
     }
 
     std::vector<wchar_t> cmd_line(options.command_line.begin(), options.command_line.end());
@@ -161,7 +171,8 @@ ProcessResult run_process(const ProcessOptions& options) {
     result.started = true;
     JobGuard job;
     job.job = create_job();
-    if (job.job) AssignProcessToJobObject(job.job, pi.hProcess);
+    if (job.job)
+        AssignProcessToJobObject(job.job, pi.hProcess);
     ResumeThread(pi.hThread);
     CloseHandle(pi.hThread);
     CloseHandle(out_write);
@@ -173,7 +184,8 @@ ProcessResult run_process(const ProcessOptions& options) {
         WriteFile(in_write, options.stdin_data.data(),
                   static_cast<DWORD>(options.stdin_data.size()), &written, nullptr);
     }
-    if (options.close_stdin) CloseHandle(in_write);
+    if (options.close_stdin)
+        CloseHandle(in_write);
 
     std::atomic<bool> stop{false};
     std::string stdout_bytes;
@@ -207,7 +219,8 @@ ProcessResult run_process(const ProcessOptions& options) {
                 available == 0) {
                 DWORD err_available = 0;
                 PeekNamedPipe(err_read, nullptr, 0, nullptr, &err_available, nullptr);
-                if (err_available == 0) break;
+                if (err_available == 0)
+                    break;
             }
             Sleep(5);
         }
@@ -229,7 +242,8 @@ ProcessResult run_process(const ProcessOptions& options) {
 
 bool is_process_elevated() {
     HANDLE token = nullptr;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token))
+        return false;
     TOKEN_ELEVATION elevation{};
     DWORD size = sizeof(elevation);
     bool elevated = false;
@@ -250,10 +264,12 @@ std::wstring find_executable(std::wstring_view name) {
 }
 
 std::string to_utf8(std::wstring_view w) {
-    if (w.empty()) return {};
-    const int size = WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), nullptr, 0,
-                                         nullptr, nullptr);
-    if (size <= 0) return {};
+    if (w.empty())
+        return {};
+    const int size = WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), nullptr,
+                                         0, nullptr, nullptr);
+    if (size <= 0)
+        return {};
     std::string out(static_cast<std::size_t>(size), '\0');
     WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), out.data(), size, nullptr,
                         nullptr);
@@ -261,10 +277,12 @@ std::string to_utf8(std::wstring_view w) {
 }
 
 std::wstring to_wide(std::string_view s) {
-    if (s.empty()) return {};
+    if (s.empty())
+        return {};
     const int size =
         MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
-    if (size <= 0) return {};
+    if (size <= 0)
+        return {};
     std::wstring out(static_cast<std::size_t>(size), L'\0');
     MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), out.data(), size);
     return out;

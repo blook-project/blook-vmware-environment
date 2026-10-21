@@ -25,7 +25,9 @@ Config scratch_config() {
     return cfg;
 }
 
-bool vmware_available(const Config& cfg) { return file_exists(cfg.vmcli()); }
+bool vmware_available(const Config& cfg) {
+    return file_exists(cfg.vmcli());
+}
 
 }  // namespace
 

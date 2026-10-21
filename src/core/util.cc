@@ -174,7 +174,6 @@ std::string printable_ascii(std::string_view s) {
     return out;
 }
 
-
 namespace {
 fs::path g_command_log;
 }
@@ -188,16 +187,21 @@ std::string local_time_string() {
     return buffer;
 }
 
-void set_command_log(const fs::path& log_file) { g_command_log = log_file; }
+void set_command_log(const fs::path& log_file) {
+    g_command_log = log_file;
+}
 
 void log_command(std::wstring_view command_line, long long duration_ms, int exit_code,
                  bool timed_out) {
-    if (g_command_log.empty()) return;
-    const std::string line = "[" + local_time_string() + "] " + to_utf8(command_line) + " -> exit=" +
-                             std::to_string(exit_code) + " " + std::to_string(duration_ms) + "ms" +
-                             (timed_out ? " TIMED OUT" : "") + "\n";
+    if (g_command_log.empty())
+        return;
+    const std::string line = "[" + local_time_string() + "] " + to_utf8(command_line) +
+                             " -> exit=" + std::to_string(exit_code) + " " +
+                             std::to_string(duration_ms) + "ms" + (timed_out ? " TIMED OUT" : "") +
+                             "\n";
     std::ofstream out(g_command_log, std::ios::binary | std::ios::app);
-    if (out) out << line;
+    if (out)
+        out << line;
 }
 
 void sleep_ms(int ms) {

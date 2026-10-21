@@ -85,12 +85,15 @@ void run_checked(const std::vector<std::wstring>& argv, const std::string& what,
 fs::path find_guest_artifact(const wchar_t* name) {
     wchar_t buffer[MAX_PATH * 2];
     const DWORD len = GetModuleFileNameW(nullptr, buffer, static_cast<DWORD>(std::size(buffer)));
-    if (len == 0) return {};
+    if (len == 0)
+        return {};
     const fs::path base = fs::path(std::wstring(buffer, len)).parent_path();
-    for (const fs::path& dir : {base, base / L"..", base / L".." / L"..", base / L".." / L".." / L".."}) {
+    for (const fs::path& dir :
+         {base, base / L"..", base / L".." / L"..", base / L".." / L".." / L".."}) {
         std::error_code ec;
         const fs::path candidate = (dir / name).lexically_normal();
-        if (fs::exists(candidate, ec)) return fs::weakly_canonical(candidate, ec);
+        if (fs::exists(candidate, ec))
+            return fs::weakly_canonical(candidate, ec);
     }
     return {};
 }
@@ -235,7 +238,8 @@ ResetReport Lab::reset(const std::string& name, const std::string& reason) {
 bool Lab::wait_ready(const std::string& name, std::chrono::seconds timeout) {
     // Fail fast on a bad VM name instead of polling for the whole timeout.
     const auto info = vmware_.find(name);
-    if (!info) throw Error("no such VM: " + name + " (create it with `bvmenv create " + name + "`)");
+    if (!info)
+        throw Error("no such VM: " + name + " (create it with `bvmenv create " + name + "`)");
 
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     bool started = false;
@@ -244,8 +248,8 @@ bool Lab::wait_ready(const std::string& name, std::chrono::seconds timeout) {
         if (power == PowerState::Off) {
             // wait_ready never powers a VM on: that is `start`/`create`'s job.
             if (std::chrono::steady_clock::now() >= deadline) {
-                throw Error("VM " + name + " is powered off; start it first (`bvmenv start " + name +
-                            "`)");
+                throw Error("VM " + name + " is powered off; start it first (`bvmenv start " +
+                            name + "`)");
             }
             sleep_ms(1000);
             continue;
@@ -257,7 +261,8 @@ bool Lab::wait_ready(const std::string& name, std::chrono::seconds timeout) {
         if (tools.state == ToolsState::Running && vmware_.guest_ping(name)) {
             return true;
         }
-        if (std::chrono::steady_clock::now() >= deadline) return false;
+        if (std::chrono::steady_clock::now() >= deadline)
+            return false;
         sleep_ms(1000);
     }
     return started;
@@ -784,21 +789,52 @@ void Lab::base_build(const BaseBuildOptions& options) {
     if (const fs::path vtx = find_guest_artifact(L"guest-vtx-probe.sys"); !vtx.empty()) {
         fs::copy_file(vtx, L"V:\\blook\\vtx-probe.sys", fs::copy_options::overwrite_existing, ec);
     } else {
-        throw Error("guest-vtx-probe.sys not found next to bvmenv.exe; build it with "
-                    "`xmake f --guest_drivers=y && xmake guest-vtx-probe`");
+        throw Error(
+            "guest-vtx-probe.sys not found next to bvmenv.exe; build it with "
+            "`xmake f --guest_drivers=y && xmake guest-vtx-probe`");
     }
     write_text(L"V:\\Windows\\Setup\\Scripts\\SetupComplete.cmd",
                "@echo off\r\n"
                "rem blook-vmware-environment: insurance kick for guest provisioning.\r\n"
                "if exist C:\\blook\\stage.cmd call C:\\blook\\stage.cmd\r\n");
 
-    // 5. Offline registry hint so the remaining passes find the answer file.
+    // 5. Offline registry: answer file hint + OOBE/autologon pre-seeding.
+    //
+    // OOBE is the most fragile part of an *imaged* (rather than installed)
+    // Windows: if the "Getting ready" stage wedges, the guest never gets a
+    // session and guest operations are unusable. The answer file drives
+    // specialize/oobeSystem, but these keys are belt-and-braces so a machine
+    // that skips OOBE still lands on a desktop with a live session, which is
+    // what every downstream test needs.
     run_checked(
         {L"reg.exe", L"load", L"HKLM\\BVM_SYSTEM", L"V:\\Windows\\System32\\config\\SYSTEM"},
-        "reg load", std::chrono::minutes(2));
+        "reg load SYSTEM", std::chrono::minutes(2));
     run_capture({L"reg.exe", L"add", L"HKLM\\BVM_SYSTEM\\Setup", L"/v", L"UnattendFile", L"/t",
                  L"REG_SZ", L"/d", L"C:\\Windows\\Panther\\Unattend\\Unattend.xml", L"/f"});
-    run_checked({L"reg.exe", L"unload", L"HKLM\\BVM_SYSTEM"}, "reg unload",
+    run_checked({L"reg.exe", L"unload", L"HKLM\\BVM_SYSTEM"}, "reg unload SYSTEM",
+                std::chrono::minutes(2));
+
+    run_checked(
+        {L"reg.exe", L"load", L"HKLM\\BVM_SOFTWARE", L"V:\\Windows\\System32\\config\\SOFTWARE"},
+        "reg load SOFTWARE", std::chrono::minutes(2));
+    const wchar_t* const oobe = L"HKLM\\BVM_SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OOBE";
+    run_capture({L"reg.exe", L"add", oobe, L"/v", L"SkipMachineOOBE", L"/t", L"REG_DWORD", L"/d",
+                 L"1", L"/f"});
+    run_capture({L"reg.exe", L"add", oobe, L"/v", L"SkipUserOOBE", L"/t", L"REG_DWORD", L"/d", L"1",
+                 L"/f"});
+    const wchar_t* const winlogon =
+        L"HKLM\\BVM_SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon";
+    run_capture({L"reg.exe", L"add", winlogon, L"/v", L"AutoAdminLogon", L"/t", L"REG_SZ", L"/d",
+                 L"1", L"/f"});
+    run_capture({L"reg.exe", L"add", winlogon, L"/v", L"DefaultUserName", L"/t", L"REG_SZ", L"/d",
+                 L"blook", L"/f"});
+    run_capture({L"reg.exe", L"add", winlogon, L"/v", L"DefaultPassword", L"/t", L"REG_SZ", L"/d",
+                 L"blook", L"/f"});
+    run_capture({L"reg.exe", L"add", winlogon, L"/v", L"DefaultDomainName", L"/t", L"REG_SZ", L"/d",
+                 L"BLOOK-BASE", L"/f"});
+    run_capture({L"reg.exe", L"add", winlogon, L"/v", L"ForceAutoLogon", L"/t", L"REG_SZ", L"/d",
+                 L"1", L"/f"});
+    run_checked({L"reg.exe", L"unload", L"HKLM\\BVM_SOFTWARE"}, "reg unload SOFTWARE",
                 std::chrono::minutes(2));
 
     // 6. Detach + convert to VMDK (VMDK is required for snapshots/clones).

@@ -72,8 +72,8 @@ ProcessResult Vmware::vmrun(const std::vector<std::wstring>& args,
 
     ProcessOptions options;
     options.command_line = build_command_line(argv);
-    options.timeout = timeout.count() > 0 ? timeout
-                                          : std::chrono::milliseconds(cfg_.command_timeout_ms);
+    options.timeout =
+        timeout.count() > 0 ? timeout : std::chrono::milliseconds(cfg_.command_timeout_ms);
     const auto started = std::chrono::steady_clock::now();
     ProcessResult result = run_process(options);
     log_command(options.command_line,
@@ -93,8 +93,8 @@ ProcessResult Vmware::vmcli(const std::vector<std::wstring>& args,
         argv.push_back(a);
     ProcessOptions options;
     options.command_line = build_command_line(argv);
-    options.timeout = timeout.count() > 0 ? timeout
-                                          : std::chrono::milliseconds(cfg_.command_timeout_ms);
+    options.timeout =
+        timeout.count() > 0 ? timeout : std::chrono::milliseconds(cfg_.command_timeout_ms);
     const auto started = std::chrono::steady_clock::now();
     ProcessResult result = run_process(options);
     log_command(options.command_line,
@@ -409,11 +409,10 @@ bool Vmware::guest_reachable(const std::string& name) const {
 }
 
 bool Vmware::guest_ping(const std::string& name, std::chrono::milliseconds timeout) const {
-    const ProcessResult r = vmrun({L"-gu", widen(cfg_.guest_user), L"-gp",
-                                   widen(cfg_.guest_password), L"runProgramInGuest",
-                                   vmx_wide(name), L"C:\\Windows\\System32\\cmd.exe", L"/c",
-                                   L"exit 0"},
-                                  timeout);
+    const ProcessResult r = vmrun(
+        {L"-gu", widen(cfg_.guest_user), L"-gp", widen(cfg_.guest_password), L"runProgramInGuest",
+         vmx_wide(name), L"C:\\Windows\\System32\\cmd.exe", L"/c", L"exit 0"},
+        timeout);
     return r.exit_code == 0 && !r.timed_out;
 }
 

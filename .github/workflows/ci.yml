@@ -50,6 +50,10 @@ jobs:
           } else {
             Write-Warning "doctor ok=false (expected without VMware): $($report.config_error)"
           }
+          # GitHub Actions appends `exit $LASTEXITCODE`: the graceful-degradation
+          # path must not turn the step red.
+          $global:LASTEXITCODE = 0
+          exit 0
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -106,27 +110,26 @@ jobs:
           xmake-version: latest
           actions-cache-folder: .xmake-cache
 
-      - name: Detect WDK
-        id: wdk
+      - name: Install WDK (NuGet content, no admin)
         shell: pwsh
         run: |
-          $root = 'C:\Program Files (x86)\Windows Kits\10'
-          $roots = Get-ChildItem "$root\Include" -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match '^10\.' }
-          if (-not $roots) { Write-Host 'WDK not present on this image, skipping'; exit 0 }
-          $ver = $roots[-1].Name
-          Write-Host "WDK $ver found"
-          "present=true" | Out-File -Append $env:GITHUB_OUTPUT
-          "wdk_dir=$root" | Out-File -Append $env:GITHUB_OUTPUT
+          # The runner ships the Windows SDK but NOT the WDK (km libs absent), so
+          # bring the WDK content in from NuGet; see
+          # https://github.com/blook-project/blook-xmake-repo/blob/main/docs/CI-WDK.md
+          $ver = '10.0.26100.6584'
+          $dst = "$env:RUNNER_TEMP\wdk"
+          New-Item -ItemType Directory -Force $dst | Out-Null
+          $url = "https://api.nuget.org/v3-flatcontainer/microsoft.windows.wdk.x64/$ver/microsoft.windows.wdk.x64.$ver.nupkg"
+          Invoke-WebRequest -Uri $url -OutFile "$dst\wdk.nupkg" -UseBasicParsing
+          & tar.exe -xf "$dst\wdk.nupkg" -C $dst
+          if (-not (Test-Path "$dst\c\Include\10.0.26100.0\km\ntddk.h")) { throw 'WDK headers missing' }
+          if (-not (Test-Path "$dst\c\Lib\10.0.26100.0\km\x64")) { throw 'WDK km libs missing' }
+          "WDK_ROOT=$dst\c" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
 
       - name: Build guest drivers
-        if: steps.wdk.outputs.present == 'true'
         shell: pwsh
-        env:
-          WDKContentRoot: ${{ steps.wdk.outputs.wdk_dir }}
         run: |
-          # xmake's WDK rule needs to be told where the WDK lives on CI images.
-          xmake f -y --guest_drivers=y --wdk="$env:WDKContentRoot"
+          xmake f -c -y --guest_drivers=y --wdk="$env:WDK_ROOT"
           xmake -y guest-vtx-probe
           xmake -y guest-bsod-driver
           xmake -y guest-hang-driver
