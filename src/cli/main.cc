@@ -155,6 +155,8 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
         return cmd_pin_vcpu(ctx, parse_args(rest, boolean_flags));
     if (command == "testsigning")
         return cmd_testsigning(ctx, parse_args(rest, boolean_flags));
+    if (command == "dump")
+        return cmd_dump_pull(ctx, parse_args(rest, boolean_flags));
     if (command == "serial-log")
         return cmd_serial_log(ctx, parse_args(rest, boolean_flags));
     if (command == "serial-probe")

@@ -4,6 +4,27 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.3] - 2026-10-21
+
+### Fixed
+
+- **SPC SHA-1 signing works with DSE fully enabled** - my earlier `577` table was
+  a configuration error: the TSA **leaf** certificate was missing (only the root
+  was trusted) and a leftover `blook-provision` boot task re-enabled
+  `nointegritychecks` on every boot, so the boot under test was never the one
+  that had been configured. Reproduced: `testsigning No` + `nointegritychecks No`
+  + root/CA/TrustedPublisher populated -> SPC SHA-1 driver loads and bugchecks.
+- `bvmenv dump pull` accepts both `dump pull <vm>` and `dump <vm>`, and reports
+  the copy error in the JSON. Verified end-to-end: 10 MB
+  `C:\Windows\MEMORY.DMP` pulled off a live fork.
+
+### Docs
+
+- `docs/images.md`: corrected signing matrix, serial capture **closed** (guest
+  COM1 writes do not reach VMware on this build), kernel-dump workflow, and the
+  note that CI runners have `testsigning Yes` so `sc start` alone is not policy
+  proof (assert `signtool /kp` + record `bcdedit`).
+
 ## [0.2.2] - 2026-10-21
 
 ### Added

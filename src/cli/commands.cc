@@ -829,19 +829,24 @@ int cmd_dump_pull(Context& ctx, const ParsedArgs& args) {
     // correlate with the host freezes on this box).
     if (const int rc = require_name(args, "dump"))
         return rc;
-    const std::string name = args.positional[0];
+    // Accept both `dump <vm>` and `dump pull <vm>`.
+    std::string name = args.positional[0];
+    if (name == "pull" && args.positional.size() > 1)
+        name = args.positional[1];
     const fs::path out = args.has("out") ? fs::path(to_wide(args.get("out")))
                                          : (ctx.config.evidence_dir() / "dumps" / (name + ".dmp"));
     ensure_dir(out.parent_path());
     std::vector<std::string> candidates = {"C:\\Windows\\MEMORY.DMP"};
     // Kernel dump only: that is what `kd -z` needs for a stalled guest.
     std::string pulled;
+    std::string copy_error;
     for (const auto& candidate : candidates) {
         try {
             ctx.vmware.copy_from_guest(name, candidate, out);
             pulled = candidate;
             break;
-        } catch (const std::exception&) {
+        } catch (const std::exception& e) {
+            copy_error = e.what();
         }
     }
     json::Value result(json::Object{});
@@ -855,6 +860,8 @@ int cmd_dump_pull(Context& ctx, const ParsedArgs& args) {
     } else {
         result["bytes"] = 0;
         result["ok"] = false;
+        if (!copy_error.empty())
+            result["error"] = copy_error;
     }
     if (ctx.json) {
         std::printf("%s\n", result.dump(2).c_str());
