@@ -76,6 +76,27 @@ gsudo -d .\build\windows\x64\releasedbg\bvmenv.exe base build
 .\build\windows\x64\releasedbg\bvmenv.exe reset vm-drv
 ```
 
+## Driver signing in the lab image
+
+The lab image ships with **testsigning on** (`nointegritychecks on`, `debug on`)
+because on Windows 11 26100 with DSE enforced, legacy SPC signatures are rejected
+with `577` (ERROR_INVALID_IMAGE_HASH) even after trusting the TSA root - Microsoft
+policy on 26100 effectively accepts only WHQL or test-signed drivers. That is a
+lab-only decision: `testsigning off` is not a substitute for production signing.
+
+Per-fork control, so both modes can be tested without rebuilding the image:
+
+```powershell
+bvmenv testsigning vm-drv off --reboot    # DSE on: only properly signed drivers load
+bvmenv testsigning vm-drv on  --reboot    # lab mode: test-signed drivers load
+```
+
+The host-side drivers are SPC-signed with blook-drv's signer scheme
+(`spcsign --sha1 --cert XINDA --tsa-time 2013-01-01T00:00:00Z --chain ...`), see
+[`scripts/sign-guest-drivers.ps1`](scripts/sign-guest-drivers.ps1); the signer is
+not vendored here (`BVMENV_SIGNER_DIR`). `docs/images.md` records the DSE/SPC
+findings and the `tsa-root.cer` trust step.
+
 ## Concurrency budget (hard rule)
 
 This host froze twice with many concurrent guests (the second time with six

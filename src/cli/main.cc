@@ -151,6 +151,10 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
 
     if (command == "crash")
         return cmd_crash(ctx, parse_args(rest, boolean_flags));
+    if (command == "testsigning")
+        return cmd_testsigning(ctx, parse_args(rest, boolean_flags));
+    if (command == "serial-probe")
+        return cmd_serial_probe(ctx, parse_args(rest, boolean_flags));
     if (command == "host-prep")
         return cmd_host_prep(ctx, parse_args(rest, boolean_flags));
     if (command == "doctor")

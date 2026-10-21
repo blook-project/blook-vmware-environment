@@ -4,6 +4,39 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-10-21
+
+### Added
+
+- `bvmenv testsigning <vm> on|off [--reboot]` - per-fork DSE control, so owners
+  can test both the lab (test-signed) and the DSE-enforced (SPC-signed) paths
+  without rebuilding the image (`bvmenv.testsigning.v1`).
+- `bvmenv serial-probe <vm>` - asserts that a fork's file-backed COM1 actually
+  works (guest writes a marker, the host requires `serial.log` to grow;
+  `bvmenv.serial-probe.v1`). On Workstation 25 the file backend turned out to be
+  **inert** for guest writes, which is exactly the silent failure it catches.
+- `bvmenv create --pin-pcores [--pcores "0-15"]` - writes
+  `sched.cpu.affinity` so vCPUs stay on P-cores (hybrid i9-12900KS: E-cores are
+  where the silent VMLAUNCH wedge appears).
+- `kd-pipe --off` now restores the **full** serial block
+  (`present/fileType/fileName/tryNoRxLoss=FALSE/yieldOnMsrRead=TRUE`); before it
+  left the fork with an inert COM1.
+- Provisioning installs any staged `C:\blook\certs\*.cer` into the Root store
+  (e.g. blook-drv's `tsa-root.cer`), so SPC signatures can be inspected with
+  `signtool /kp` inside the VM.
+- Guest drivers are signed with blook-drv's **SPC scheme** (`spcsign`, XINDA
+  cert, 2013 countersignature) instead of the lab test certificate; the signer is
+  not vendored in this repo (`BVMENV_SIGNER_DIR`, documented).
+
+### Notes
+
+- The lab image keeps `testsigning on`: on Windows 11 26100, DSE rejects the
+  legacy SPC chain with `577` even with the TSA root trusted (verified in a VM
+  and with `signtool /kp`), so test-signed drivers remain the only way for SCM to
+  load kernel code there. A DSE-on (SPC) validation needs a Windows 10 image.
+- `win_dsh-test1` / `win_dsh-test2` are local accounts on this same machine, not
+  separate test machines.
+
 ## [0.1.15] - 2026-10-21
 
 ### Fixed

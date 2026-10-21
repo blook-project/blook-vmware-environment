@@ -31,7 +31,7 @@ function Test-Reg {
 
 # --- bcdedit / test signing / kernel debug --------------------------------
 $bcd = (& bcdedit.exe /enum '{current}' 2>&1) -join "`n"
-Add-Check 'bcdedit testsigning on' ($bcd -match 'testsigning\s+Yes') 'bcdedit /set {current} testsigning on'
+Add-Check 'testsigning off (DSE enforced)' (-not ($bcd -match 'testsigning\s+Yes')) 'drivers must be SPC-signed'
 Add-Check 'bcdedit nointegritychecks on' ($bcd -match 'nointegritychecks\s+Yes') 'advapi no integrity checks'
 Add-Check 'kernel debugging on' ($bcd -match 'debug\s+Yes') 'bcdedit /debug on'
 $dbg = (& bcdedit.exe /dbgsettings 2>&1) -join "`n"

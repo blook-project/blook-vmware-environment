@@ -41,6 +41,8 @@ int cmd_crash(Context& ctx, const ParsedArgs& args);
 int cmd_kd(Context& ctx, const ParsedArgs& args);
 int cmd_kd_pipe(Context& ctx, const ParsedArgs& args);
 int cmd_host_prep(Context& ctx, const ParsedArgs& args);
+int cmd_serial_probe(Context& ctx, const ParsedArgs& args);
+int cmd_testsigning(Context& ctx, const ParsedArgs& args);
 int cmd_doctor(Context& ctx, const ParsedArgs& args);
 int cmd_selftest(Context& ctx, const ParsedArgs& args);
 int cmd_version(Context& ctx);

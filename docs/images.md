@@ -84,3 +84,26 @@ The symptom is VMs losing VMware Tools heartbeats and then the host dying - it i
 NOT a VM-count problem. `MuMuVMMDrv` is now `start=demand`; if MuMu is needed
 later, `sc config MuMuVMMDrv start= system` brings it back at boot, and
 `bvmenv host-prep` stops it again before VMware work.
+
+## Driver signing: DSE on, SPC-signed guests
+
+The guest runs with **Driver Signature Enforcement ON** (`testsigning off`).
+Test drivers must therefore carry a real SPC chain, signed with blook-drv's
+signer scheme:
+
+```powershell
+$env:BVMENV_SIGNER_DIR = 'C:\blook-vms\_signer'   # a copy of blook-drv's signer/
+pwsh -File scripts/sign-guest-drivers.ps1 -BuildDir build/windows/x64/releasedbg
+# spcsign sign --sha1 --cert XINDA --tsa-time 2013-01-01T00:00:00Z --chain ... <driver.sys>
+```
+
+The signer is deliberately **not vendored** in this repository (it belongs to
+blook-drv); only the invocation contract is documented. `debug on`,
+`nointegritychecks on` and the rest of the kernel-debug setup are unchanged.
+
+## Local accounts on this host are not a second machine
+
+`win_dsh-test1` / `win_dsh-test2` are **local Windows accounts on this same
+physical machine**, not separate test machines or VMs. Anything that matters for
+results (CPU topology, VMM drivers, storage, RAM, the VMware installation) is
+identical and shared; only the user profile and its permissions differ.

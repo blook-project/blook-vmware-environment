@@ -150,6 +150,13 @@ VmInfo Lab::create(const CreateOptions& options) {
     vmx.remove("ethernet0.address");
     vmx.remove("ethernet0.generatedAddress");
     vmx.remove("ethernet0.generatedAddressOffset");
+    if (options.pin_pcores) {
+        // Hybrid CPU (i9-12900KS: P-cores = logical 0-15, E-cores = 16-23).
+        // Pinning vCPUs to P-cores keeps nested VMX away from E-cores, where the
+        // silent VMLAUNCH wedge has been observed.
+        const std::string cpus = options.pcore_list.empty() ? "0-15" : options.pcore_list;
+        vmx.set("sched.cpu.affinity", cpus);
+    }
     if (options.kd_pipe) {
         // Named pipe KD: VMware is the pipe CLIENT and kd.exe creates the server
         // (client mode). With VMware as the server an absent/slow client can

@@ -177,7 +177,8 @@ if (-not (Test-Path -LiteralPath $phase1Marker)) {
 
     Invoke-Step 'install lab test certificate' {
         # Guest test drivers/probes are signed with the lab certificate created
-        # by the host during `base build`; with testsigning on they load once the
+        # by the host and SPC-signed (blook-drv signer scheme); the guest runs with
+# DSE enabled, so testsigning must stay OFF.
         # certificate is trusted (Root + TrustedPublisher).
         $cer = 'C:\blook\blook-lab-test.cer'
         if (-not (Test-Path -LiteralPath $cer)) { throw "lab signing certificate missing: $cer" }
@@ -186,8 +187,8 @@ if (-not (Test-Path -LiteralPath $phase1Marker)) {
     }
 
     Invoke-Step 'test signing + kernel debug' {
-        $out = & bcdedit.exe /set '{current}' testsigning on 2>&1
-        Log ('testsigning: ' + ($out -join ' '))
+        $out = & bcdedit.exe /set '{current}' testsigning off 2>&1
+        Log ('testsigning off (DSE on): ' + ($out -join ' '))
         & bcdedit.exe /set '{current}' nointegritychecks on 2>&1 | ForEach-Object { Log ('nointegritychecks: ' + $_) }
         & bcdedit.exe /set '{current}' debug on 2>&1 | ForEach-Object { Log ('debug: ' + $_) }
         & bcdedit.exe /dbgsettings serial debugport:1 baudrate:115200 2>&1 | ForEach-Object { Log ('dbgsettings: ' + $_) }
@@ -352,7 +353,7 @@ if (-not (Test-Path -LiteralPath $phase2Marker)) {
         $bcdLines = (($bcd -split "`r?`n") | Where-Object { $_ -match 'testsigning|nointegritychecks|hypervisorlaunchtype|^debug\b|debugport|bootstatuspolicy' }) -join '; '
         $hypervisorPresent = [bool](Get-CimInstance Win32_ComputerSystem).HypervisorPresent
         $state = [ordered]@{
-            testsigning          = ($bcd -match '(?m)^testsigning\s+Yes')
+            testsigning_off      = -not ($bcd -match 'testsigning\s+Yes')
             nointegritychecks    = ($bcd -match '(?m)^nointegritychecks\s+Yes')
             debug                = ($bcd -match '(?m)^debug\s+Yes')
             hypervisorlaunchtype = ((-not $hypervisorPresent) -and ($bcd -match 'hypervisorlaunchtype\s+Off'))
@@ -432,6 +433,16 @@ if (-not (Test-Path -LiteralPath $phase2Marker)) {
         & schtasks.exe /delete /tn '\Microsoft\Windows\UpdateOrchestrator\Schedule Scan' /f 2>&1 | Out-Null
     }
     Set-Content -LiteralPath 'C:\blook\provision.done' -Value (Get-Date).ToString('o') -Encoding UTF8
+    # Trust any CA certificates staged by the host (e.g. blook-drv's signer tsa
+    # root + VeriSign chain) so SPC-signed drivers can at least be verified with
+    # signtool /kp inside the VM.
+    $certDir = 'C:\blook\certs'
+    if (Test-Path -LiteralPath $certDir) {
+        Get-ChildItem -LiteralPath $certDir -Filter *.cer -ErrorAction SilentlyContinue | ForEach-Object {
+            & certutil.exe -addstore -f Root $_.FullName | Out-Null
+            Log ('trusted cert: ' + $_.Name)
+        }
+    }
     Log 'PHASE 2 complete, shutting down'
     Start-Sleep -Seconds 2
     & shutdown.exe /s /f /t 5

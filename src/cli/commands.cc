@@ -197,6 +197,8 @@ int cmd_create(Context& ctx, const ParsedArgs& args) {
     if (args.has("from"))
         options.from = args.get("from");
     options.kd_pipe = args.has("kd-pipe");
+    options.pin_pcores = args.has("pin-pcores");
+    options.pcore_list = args.get("pcores");
     if (options.kd_pipe && !args.has("unsafe-kd")) {
         std::cerr << "bvmenv: create --kd-pipe is disabled on this host (KD pipe correlates "
                      "with the host freezes); pass --unsafe-kd to override\n";
@@ -790,6 +792,101 @@ void write_stdin(HANDLE in, const std::string& text) {
 
 }  // namespace
 
+int cmd_serial_probe(Context& ctx, const ParsedArgs& args) {
+    // Assert that the fork's file-backed COM1 actually works: write a known
+    // marker to COM1 inside the guest and require the host-side serial.log to
+    // grow. A fork whose serial block lost tryNoRxLoss/yieldOnMsrRead has an
+    // inert COM1 (log stays 0 bytes), which silently breaks serial KD.
+    if (const int rc = require_name(args, "serial-probe"))
+        return rc;
+    const std::string name = args.positional[0];
+    const fs::path log = ctx.config.vm_root / "vms" / name / "serial.log";
+    std::error_code ec;
+    const auto size_before = fs::exists(log, ec) ? fs::file_size(log, ec) : 0;
+    const std::string marker = "BVMENV-SERIAL-PROBE-" + std::to_string(GetTickCount64());
+    ExecRequest request;
+    request.vm = name;
+    request.command_line = "cmd /c echo " + marker + ">COM1";
+    request.timeout = std::chrono::seconds(45);
+    request.run_id = "serial-" + std::to_string(GetTickCount64());
+    bool guest_ok = false;
+    try {
+        const ExecResult result = ctx.vmware.run(request);
+        guest_ok = result.ran && !result.timed_out && result.exit_code == 0;
+    } catch (const std::exception&) {
+    }
+    sleep_ms(2500);
+    const auto size_after = fs::exists(log, ec) ? fs::file_size(log, ec) : 0;
+    std::string tail;
+    if (fs::exists(log, ec)) {
+        const std::string text = read_text(log);
+        tail = text.size() > 400 ? text.substr(text.size() - 400) : text;
+    }
+    const bool grew = size_after > size_before;
+    json::Value out(json::Object{});
+    out["schema"] = std::string("bvmenv.serial-probe.v1");
+    out["vm"] = name;
+    out["log"] = to_utf8(log.wstring());
+    out["bytes_before"] = static_cast<long long>(size_before);
+    out["bytes_after"] = static_cast<long long>(size_after);
+    out["guest_write_ok"] = guest_ok;
+    out["marker"] = marker;
+    out["marker_in_log"] = tail.find(marker) != std::string::npos;
+    out["grew"] = grew;
+    out["ok"] = grew && guest_ok;
+    if (ctx.json) {
+        std::printf("%s\n", out.dump(2).c_str());
+    } else {
+        std::printf("serial %s: %lld -> %lld bytes (guest_write_ok=%s marker_in_log=%s)\n",
+                    grew ? "WORKS" : "INERT", static_cast<long long>(size_before),
+                    static_cast<long long>(size_after), guest_ok ? "true" : "false",
+                    tail.find(marker) != std::string::npos ? "true" : "false");
+    }
+    return (grew && guest_ok) ? 0 : 1;
+}
+
+int cmd_testsigning(Context& ctx, const ParsedArgs& args) {
+    // Lab VMs run with testsigning ON so SCM can load test-signed drivers on
+    // Win11 26100 (legacy SPC signatures are rejected there with 577 even with
+    // the TSA root trusted). Owners may switch a single fork to DSE-on to test
+    // the SPC path; a reboot is required, so it is a separate step on purpose.
+    if (args.positional.size() < 2) {
+        std::cerr << "bvmenv: testsigning requires <vm> on|off\n";
+        return 2;
+    }
+    const std::string name = args.positional[0];
+    const std::string mode = to_lower(args.positional[1]);
+    if (mode != "on" && mode != "off") {
+        std::cerr << "bvmenv: testsigning expects on|off\n";
+        return 2;
+    }
+    ExecRequest request;
+    request.vm = name;
+    request.command_line = "cmd /c bcdedit /set {current} testsigning " + mode +
+                           " & bcdedit /enum {current} | findstr /i testsigning";
+    request.timeout = std::chrono::seconds(60);
+    request.run_id = "testsigning-" + std::to_string(GetTickCount64());
+    const ExecResult result = ctx.vmware.run(request);
+    json::Value out(json::Object{});
+    out["schema"] = std::string("bvmenv.testsigning.v1");
+    out["vm"] = name;
+    out["mode"] = mode;
+    out["applied"] = result.ran && !result.timed_out && result.exit_code == 0;
+    out["output"] = trim(result.out + result.err);
+    if (args.has("reboot")) {
+        ctx.vmware.stop(name, false);
+        ctx.vmware.start(name, false);
+        out["rebooted"] = true;
+    }
+    if (ctx.json) {
+        std::printf("%s\n", out.dump(2).c_str());
+    } else {
+        std::printf("testsigning %s on %s (rebooted=%s)\n", mode.c_str(), name.c_str(),
+                    args.has("reboot") ? "true" : "false");
+    }
+    return out["applied"].as_bool() ? 0 : 1;
+}
+
 int cmd_host_prep(Context& ctx, const ParsedArgs& args) {
     // Stop other hypervisor VMM drivers (MuMu/VirtualBox/Nemu) before running VM
     // tests: two type-2 VMMs at once froze this host twice.
@@ -880,6 +977,11 @@ int cmd_kd_pipe(Context& ctx, const ParsedArgs& args) {
         vmx.set("serial0.present", "TRUE");
         vmx.set("serial0.fileType", "file");
         vmx.set("serial0.fileName", "serial.log");
+        // Restore the rest of the file-backed block too: a fork whose serial is
+        // missing tryNoRxLoss/yieldOnMsrRead has an inert COM1 (the log stays
+        // 0 bytes no matter what the guest writes).
+        vmx.set("serial0.tryNoRxLoss", "FALSE");
+        vmx.set("serial0.yieldOnMsrRead", "TRUE");
         vmx.remove("serial0.pipe.endPoint");
     }
     vmx.save(fs::path(to_wide(info->vmx)));
@@ -1117,6 +1219,8 @@ End-to-end runner (used by downstream projects, contract in docs/e2e.md)
              [--out <dir>] [--reset-on failure|always|never] [--wait-timeout N]
 
 Diagnostics
+  testsigning <vm> on|off [--reboot]   toggle DSE on a fork (lab images run testsigning on)
+  serial-probe <vm>                    assert the fork's file-backed COM1 works
   doctor [--json]    host-prep [--json]    selftest [--json]    version
 
 Environment: BVMENV_VM_ROOT (default C:\blook-vms), BVMENV_VMWARE_DIR,

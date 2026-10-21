@@ -37,6 +37,9 @@ struct CreateOptions {
     // Rewrite serial0 to a named pipe so kd.exe can attach to the fork
     // (`bvmenv kd <vm>` prints the exact command line).
     bool kd_pipe = false;
+    // Pin vCPUs to P-cores (hybrid CPUs: nested VMX on E-cores wedges).
+    bool pin_pcores = false;
+    std::string pcore_list;  // e.g. "0-15"; empty = the 12900KS default
     bool start = true;
     bool wait_ready = true;
     int ready_timeout_s = 240;
