@@ -1,2 +1,2 @@
-latest stable build: bvmenv-5d748d0.exe (git 5d748d0, 2026-10-21T14:00:03)
-use: dist\bvmenv-latest.exe (stable alias) or dist\bvmenv-5d748d0.exe (immutable)
+latest stable build: bvmenv-f20e3c8.exe (git f20e3c8, 2026-10-21T14:21:02)
+use: dist\bvmenv-latest.exe (stable alias) or dist\bvmenv-f20e3c8.exe (immutable)

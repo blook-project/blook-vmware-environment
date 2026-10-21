@@ -575,7 +575,6 @@ E2eResult Lab::e2e(const E2eRequest& request) {
             result.reset =
                 reset(request.vm, std::string("e2e:") + std::string(to_string(result.outcome)));
         }
-        write_text(artifact_dir / "result.json", result.to_json().dump(2));
         (void)pushed;
     } catch (const std::exception& e) {
         result.outcome = E2eOutcome::Error;
@@ -586,6 +585,8 @@ E2eResult Lab::e2e(const E2eRequest& request) {
     result.finished_at = now_iso8601();
     result.duration = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - started);
+    // Written last so duration_ms/finished_at in the artifact are final.
+    write_text(artifact_dir / "result.json", result.to_json().dump(2));
     return result;
 }
 

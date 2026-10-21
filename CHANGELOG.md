@@ -4,6 +4,27 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-10-21
+
+### Fixed
+
+- `kd-log` no longer leaves the guest paused at the initial breakpoint: it
+  continues the target by default (`kd -c "g"`), captures through kd's own
+  `-logo` session file, and terminates kd at the end so the target resumes.
+  Verified: `connected/continued/target_resumed = true` and the guest answers
+  `exec` afterwards.
+- `e2e` default readiness budget raised to 600 s (a freshly booted linked clone
+  needs minutes on a shared host) and `result.json` now records a real
+  `duration_ms`/`finished_at` (it was written before those were set).
+
+### Added
+
+- `kd-log --no-continue` (attach and stay broken, e.g. to inspect boot) and
+  `--break-after N --commands "<cmds>"` (Ctrl+Break break-in followed by
+  debugger commands; Ctrl+Break needs a shared console, so headless runs should
+  instead keep kd attached and force a bugcheck with `bvmenv crash`).
+- Evidence note `docs/evidence/20261021-kd-pipe/continue-by-default.md`.
+
 ## [0.1.2] - 2026-10-21
 
 ### Added

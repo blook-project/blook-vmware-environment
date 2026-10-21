@@ -690,6 +690,43 @@ std::string kd_command_line(const fs::path& kd, const std::string& pipe) {
 
 }  // namespace
 
+// ---------------------------------------------------------------------------
+// Interactive kd session
+//
+// A kernel debugger must CONTINUE the target (otherwise the guest stays frozen
+// at the initial breakpoint and looks hung), and to inspect a freeze it needs a
+// *break-in* (Ctrl+Break) followed by debugger commands. Two Windows details
+// make that possible from a background CLI:
+//   * kd gets its own console (CREATE_NEW_CONSOLE) so we can AttachConsole() to
+//     it and GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT) = Ctrl+Break;
+//   * kd's `-logo <file>` writes the whole session to a file, so output does not
+//     depend on a console handle we do not own.
+// ---------------------------------------------------------------------------
+namespace {
+
+bool break_into(HANDLE process) {
+    const DWORD pid = GetProcessId(process);
+    if (pid == 0)
+        return false;
+    if (!AttachConsole(pid))
+        return false;
+    const BOOL sent = GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid);
+    FreeConsole();
+    // Re-attach to the parent console so later logging still works (best effort).
+    AttachConsole(ATTACH_PARENT_PROCESS);
+    return sent != 0;
+}
+
+void write_stdin(HANDLE in, const std::string& text) {
+    DWORD written = 0;
+    std::string data = text;
+    if (data.empty() || data.back() != '\n')
+        data += "\r\n";
+    WriteFile(in, data.data(), static_cast<DWORD>(data.size()), &written, nullptr);
+}
+
+}  // namespace
+
 int cmd_kd(Context& ctx, const ParsedArgs& args) {
     if (args.positional.empty()) {
         std::cerr << "bvmenv: kd requires a VM name (create it with --kd-pipe)\n";
@@ -713,7 +750,9 @@ int cmd_kd(Context& ctx, const ParsedArgs& args) {
     out["kd_exe"] = to_utf8(kd.wstring());
     out["command"] = kd_command_line(kd, pipe);
 
-    if (!args.has("log") && !args.has("launch")) {
+    const bool log_mode = args.has("log") || args.has("launch") || args.has("commands") ||
+                          args.has("break-after") || args.has("reset");
+    if (!log_mode) {
         if (ctx.json) {
             std::printf("%s\n", out.dump(2).c_str());
         } else {
@@ -723,19 +762,54 @@ int cmd_kd(Context& ctx, const ParsedArgs& args) {
     }
 
     const int seconds = static_cast<int>(parse_ll(args.get("seconds"), 30));
+    const int break_after = static_cast<int>(parse_ll(args.get("break-after"), 0));
+    const bool no_continue = args.has("no-continue");
+    const std::string commands = args.get("commands", "~* kv; !thread; q");
     const fs::path log_path = args.has("out")
                                   ? fs::path(to_wide(args.get("out")))
                                   : (ctx.config.evidence_dir() / "kd" / (name + "-kd.log"));
     ensure_dir(log_path.parent_path());
-    ProcessOptions options;
-    options.command_line = build_command_line(
-        {kd.wstring(), L"-k", L"com:pipe,port=" + to_wide(pipe) + L",resets=0,reconnect"});
-    options.timeout = std::chrono::seconds(seconds);
-    ProcessResult result;
+    const fs::path session_log = log_path.string() + ".session";
+
+    const std::wstring kd_line =
+        build_command_line({kd.wstring(), L"-logo", session_log.wstring(), L"-k",
+                            L"com:pipe,port=" + to_wide(pipe) + L",resets=0,reconnect", L"-c",
+                            no_continue ? L"" : L"g"});
+
+    // stdin pipe so debugger commands can be injected after the break-in.
+    SECURITY_ATTRIBUTES sa{};
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+    HANDLE in_read = nullptr, in_write = nullptr;
+    if (!CreatePipe(&in_read, &in_write, &sa, 0)) {
+        std::cerr << "bvmenv: CreatePipe failed\n";
+        return 2;
+    }
+    SetHandleInformation(in_write, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFOW si{};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = in_read;
+    si.hStdOutput = nullptr;
+    si.hStdError = nullptr;
+    PROCESS_INFORMATION pi{};
+    std::vector<wchar_t> mutable_line(kd_line.begin(), kd_line.end());
+    mutable_line.push_back(L'\0');
+    if (!CreateProcessW(nullptr, mutable_line.data(), nullptr, nullptr, TRUE,
+                        CREATE_NEW_CONSOLE | CREATE_NEW_PROCESS_GROUP, nullptr, nullptr, &si,
+                        &pi)) {
+        std::cerr << "bvmenv: failed to start kd (error " << GetLastError() << ")\n";
+        CloseHandle(in_read);
+        CloseHandle(in_write);
+        return 2;
+    }
+    CloseHandle(pi.hThread);
+    CloseHandle(in_read);
+
+    const int run_seconds = break_after > 0 ? break_after : seconds;
     if (args.has("reset")) {
-        // Attach first, then reset the VM so KD catches the boot (a debugger
-        // attached after boot only reports "no_debuggee").
-        std::thread worker([&] { result = run_process(options); });
+        // Attach first, then reset so KD catches the boot.
         sleep_ms(4000);
         try {
             ctx.vmware.reset_power(name);
@@ -743,24 +817,66 @@ int cmd_kd(Context& ctx, const ParsedArgs& args) {
         } catch (const std::exception& e) {
             out["reset_error"] = e.what();
         }
-        worker.join();
-    } else {
-        result = run_process(options);
     }
-    const std::string log = result.out + result.err;
-    out["connected"] = log.find("Connected to Windows") != std::string::npos;
+
+    json::Value phases(json::Array{});
+    json::Value stream_phase(json::Object{});
+    stream_phase["name"] = std::string("stream");
+    stream_phase["seconds"] = run_seconds;
+    phases.push(std::move(stream_phase));
+
+    const auto stream_deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(std::max(3, run_seconds));
+    while (std::chrono::steady_clock::now() < stream_deadline) {
+        sleep_ms(250);
+    }
+
+    bool broke_in = false;
+    if (args.has("commands") || break_after > 0) {
+        broke_in = break_into(pi.hProcess);
+        sleep_ms(1500);
+        write_stdin(in_write, commands + "\r\n");
+        sleep_ms(6000);
+        write_stdin(in_write, "q\r\n");
+        sleep_ms(1500);
+        json::Value break_phase(json::Object{});
+        break_phase["name"] = std::string("break-in");
+        break_phase["commands"] = commands;
+        break_phase["ctrl_break"] = broke_in;
+        phases.push(std::move(break_phase));
+    }
+
+    // Shutting kd down resumes the target: never leave the guest at a breakpoint.
+    if (WaitForSingleObject(pi.hProcess, 3000) == WAIT_TIMEOUT) {
+        TerminateProcess(pi.hProcess, 0);
+    }
+    const DWORD waited = WaitForSingleObject(pi.hProcess, 5000);
+    (void)waited;
+    CloseHandle(in_write);
+    CloseHandle(pi.hProcess);
+
+    // Prefer kd's own session log (complete, not console-buffer dependent).
+    std::string log;
+    if (file_exists(session_log))
+        log = read_text(session_log);
     write_text(log_path, log);
+    const bool connected = log.find("Connected to Windows") != std::string::npos;
     out["log_path"] = to_utf8(log_path.wstring());
-    out["seconds"] = seconds;
-    out["timed_out"] = result.timed_out;
+    out["seconds"] = run_seconds;
+    out["continued"] = !no_continue;
+    out["connected"] = connected;
+    out["break_in"] = broke_in;
+    out["target_resumed"] = true;
+    out["phases"] = std::move(phases);
     out["bytes"] = static_cast<long long>(log.size());
     if (ctx.json) {
         std::printf("%s\n", out.dump(2).c_str());
     } else {
-        std::printf("kd log (%lld bytes, timed_out=%s): %s\n", static_cast<long long>(log.size()),
-                    result.timed_out ? "true" : "false", to_utf8(log_path.wstring()).c_str());
+        std::printf("kd log (%lld bytes, connected=%s, break_in=%s): %s\n",
+                    static_cast<long long>(log.size()), connected ? "true" : "false",
+                    broke_in ? "true" : "false", to_utf8(log_path.wstring()).c_str());
     }
-    return result.started ? 0 : 2;
+    return connected ? 0 : 2;
 }
 
 void print_help() {

@@ -176,7 +176,7 @@ struct E2eRequest {
     std::chrono::seconds timeout{120};
     std::string out_dir;               // host artifact root
     std::string reset_on = "failure";  // failure | always | never
-    int wait_ready_timeout_s = 180;
+    int wait_ready_timeout_s = 600;    // fresh clone first boot can take minutes
 };
 
 struct E2eResult {
