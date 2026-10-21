@@ -892,6 +892,15 @@ int cmd_serial_log(Context& ctx, const ParsedArgs& args) {
         std::cerr << "bvmenv: cannot write " << to_utf8(out.wstring()) << "\n";
         return 2;
     }
+    if (args.has("boot")) {
+        // VMware connects as the pipe CLIENT at power-on: the server must exist
+        // first, otherwise the port is inert for the whole boot.
+        try {
+            ctx.vmware.start(name, false);
+        } catch (const std::exception& e) {
+            std::cerr << "bvmenv: start failed: " << e.what() << "\n";
+        }
+    }
     std::atomic<bool> stop{false};
     std::atomic<long long> written{0};
     std::thread reader([&] {
