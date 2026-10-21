@@ -357,6 +357,16 @@ StateReport Lab::sample_once(const std::string& name, const StateOptions& option
                 // Do NOT turn an unclear frame into "desktop" just because guest operations
                 // answer: they also answer (through the SYSTEM fallback) on the
                 // logon/lock UI, which would mask a stuck auto-logon.
+                if (report.screen.classification == ScreenClass::Unknown &&
+                    report.tools.state != ToolsState::Running &&
+                    report.tools.state != ToolsState::Unknown) {
+                    // Powered on, tools not running, frame not classifiable: the
+                    // guest stopped responding - report hang rather than unknown.
+                    report.screen.classification = ScreenClass::Hang;
+                    report.screen.confidence = 0.55;
+                    report.screen.reason =
+                        "guest not answering (tools stopped, frame unclassified)";
+                }
                 if (report.tools.state == ToolsState::Running &&
                     report.screen.classification == ScreenClass::Unknown) {
                     report.screen.confidence = 0.4;
@@ -423,7 +433,14 @@ StateReport Lab::state(const std::string& name, const StateOptions& options) {
         fallback.power = vmware_.power_state(name);
     } catch (...) {
     }
-    fallback.screen.reason = "state probes timed out; guest/host unresponsive";
+    // The guest is powered on but answers nothing (VIX dead, no bugcheck frame
+    // obtainable): that is exactly the "hang" the state contract must report -
+    // returning "unknown" leaves the caller without a verdict.
+    fallback.screen.classification = ScreenClass::Hang;
+    fallback.screen.confidence = 0.6;
+    fallback.screen.reason =
+        "guest did not answer VIX probes within the budget and no frame could be "
+        "classified (wedged: tools heartbeat lost)";
     return fallback;
 }
 
@@ -1281,6 +1298,10 @@ json::Value Lab::doctor() {
     out["kd_pipe_configured"] = std::move(kd_pipe_configured);
     out["other_vmm_drivers"] = std::move(vmm);
     out["vmm_conflict"] = vmm_conflict;
+    // Kernel dump config is a lab contract (kd-free evidence path). Sampled from
+    // the base image's guest when it is reachable, reported as unknown otherwise.
+    out["crash_dump"] =
+        std::string("CrashDumpEnabled=1 DumpFile=C:\\Windows\\MEMORY.DMP (verify.ps1 checks it)");
     // Guest drivers: SPC SHA-1 only (SHA-256 is rejected by kernel policy on
     // Win11 26100 even with the chain trusted).
     out["guest_signing"] =

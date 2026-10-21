@@ -57,6 +57,9 @@ Add-Check 'vmware tools running' ($tools -and $tools.Status -eq 'Running') 'gues
 Add-Check 'dev account exists' ([bool](Get-LocalUser -Name 'blook' -ErrorAction SilentlyContinue)) 'blook / blook'
 $rootStore = (& certutil.exe -store Root 2>&1) -join "`n"
 Add-Check 'SPC trust: tsa root in Root store' ($rootStore -match 'tsa') 'blook-drv signer tsa-root.cer'
+$crash = Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' -ErrorAction SilentlyContinue
+$dumpOk = ($crash.CrashDumpEnabled -eq 1) -and ($crash.DumpFile -match 'MEMORY\.DMP')
+Add-Check 'crash dump configured (kernel dump)' $dumpOk ('CrashDumpEnabled=' + $crash.CrashDumpEnabled + ' DumpFile=' + $crash.DumpFile)
 Add-Check 'lock screen disabled' (Test-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' 'NoLockScreen' 1) 'headless screenshots stay on the desktop'
 
 # --- nested virtualisation (the lab hypervisor needs VT-x) ---------------

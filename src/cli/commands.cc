@@ -392,6 +392,10 @@ int cmd_state(Context& ctx, const ParsedArgs& args) {
         options.capture = false;
     options.use_ocr = !args.has("no-ocr");
     options.samples = static_cast<int>(parse_ll(args.get("samples"), 1));
+    // Operator control + test seam: how long host-side probes may take before
+    // `state` answers with its host-only verdict (0 = immediate fallback).
+    if (args.has("budget"))
+        options.probe_budget_s = static_cast<int>(parse_ll(args.get("budget"), 20));
     if (options.samples > 1)
         options.samples = std::max(options.samples, ctx.config.hang_samples);
     const StateReport report = ctx.lab.state(args.positional[0], options);

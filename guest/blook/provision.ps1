@@ -196,13 +196,20 @@ if (-not (Test-Path -LiteralPath $phase1Marker)) {
         & bcdedit.exe /set '{current}' recoveryenabled No 2>&1 | ForEach-Object { Log ('recoveryenabled: ' + $_) }
     }
 
-    Invoke-Step 'bugcheck behaviour: stay on screen, no dump' {
+    Invoke-Step 'bugcheck behaviour: stay on screen, kernel dump' {
         $cc = 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl'
         Set-Reg $cc 'AutoReboot' 0
         Set-Reg $cc 'DisplayParameters' 1
-        Set-Reg $cc 'CrashDumpEnabled' 0
+        # Kernel dump: the lab needs MEMORY.DMP for kd-free evidence (`bvmenv dump pull`).
+        # CrashDumpEnabled 1 = kernel dump; the page file is system-managed and
+        # large enough on this image (16 GB RAM).
+        Set-Reg $cc 'CrashDumpEnabled' 1
+        Set-Reg $cc 'DumpFile' 'C:\Windows\MEMORY.DMP' -Type String
+        Set-Reg $cc 'MinidumpDir' 'C:\Windows\Minidump' -Type String
+        Set-Reg $cc 'Overwrite' 1
+        Set-Reg $cc 'AlwaysKeepMemoryDump' 1
+        Log ('crash dump: CrashDumpEnabled=' + (Get-ItemProperty -Path $cc -Name CrashDumpEnabled).CrashDumpEnabled + ' DumpFile=' + (Get-ItemProperty -Path $cc -Name DumpFile).DumpFile)
         Set-Reg $cc 'LogEvent' 1
-        Set-Reg $cc 'AlwaysKeepMemoryDump' 0
         Set-Reg $cc 'Overwrite' 1
         Set-Reg $cc 'IgnorePagefileSize' 1
         Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' 'LargeSystemCache' 0

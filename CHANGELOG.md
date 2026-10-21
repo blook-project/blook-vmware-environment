@@ -4,6 +4,28 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.4] - 2026-10-21
+
+### Fixed
+
+- **Kernel dumps were disabled by provisioning**: the bugcheck step wrote
+  `CrashDumpEnabled = 0` and then reset `AlwaysKeepMemoryDump = 0`, so every
+  fresh fork reported `CrashDumpEnabled = 0x0` even though the docs claimed
+  dumps. Provisioning now writes `CrashDumpEnabled = 1`,
+  `DumpFile = C:\\Windows\\MEMORY.DMP`, `MinidumpDir`, `Overwrite = 1`,
+  `AlwaysKeepMemoryDump = 1`, logs the effective values, and `verify.ps1` has a
+  "crash dump configured" check (so `base verify --deep` fails if it regresses).
+  Verified on a brand-new fork: `CrashDumpEnabled 0x1`, `DumpFile C:\\Windows\\MEMORY.DMP`.
+- **`state` reported `unknown` for a wedged guest** instead of `hang`. Two paths
+  now resolve it: (a) when the host-side probe budget expires, the report is
+  `hang` with reason "guest did not answer VIX probes ... (wedged: tools
+  heartbeat lost)"; (b) a powered-on guest whose tools stopped and whose frame is
+  unclassifiable is `hang` instead of `unknown`. The 20 s per-sample guard is
+  unchanged.
+- `state --budget <seconds>` exposes the probe budget (operator control and a
+  test seam for the fallback verdict).
+- `doctor` reports `crash_dump` (the lab contract) next to `guest_signing`.
+
 ## [0.2.3] - 2026-10-21
 
 ### Fixed
