@@ -1217,6 +1217,20 @@ json::Value Lab::doctor() {
         }
     }
     out["kd_pipe_running"] = std::move(kd_pipe_running);
+
+    // Any managed VM with the pipe serial is a host-safety liability while kd is
+    // banned: it only takes one start to re-create the freeze conditions.
+    json::Value kd_pipe_configured(json::Array{});
+    try {
+        for (const auto& vm : vmware_.list()) {
+            const Vmx vmx = Vmx::load(fs::path(to_wide(vm.vmx)));
+            if (to_lower(vmx.get("serial0.fileType")) == "pipe") {
+                kd_pipe_configured.push(vm.name);
+            }
+        }
+    } catch (...) {
+    }
+    out["kd_pipe_configured"] = std::move(kd_pipe_configured);
     out["other_vmm_drivers"] = std::move(vmm);
     out["vmm_conflict"] = vmm_conflict;
     checks.emplace_back("no other hypervisor VMM driver running", !vmm_conflict);

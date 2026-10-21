@@ -197,6 +197,11 @@ int cmd_create(Context& ctx, const ParsedArgs& args) {
     if (args.has("from"))
         options.from = args.get("from");
     options.kd_pipe = args.has("kd-pipe");
+    if (options.kd_pipe && !args.has("unsafe-kd")) {
+        std::cerr << "bvmenv: create --kd-pipe is disabled on this host (KD pipe correlates "
+                     "with the host freezes); pass --unsafe-kd to override\n";
+        return 2;
+    }
     options.start = !args.has("no-start");
     options.wait_ready = !args.has("no-wait");
     if (args.has("timeout")) {
@@ -841,6 +846,16 @@ int cmd_kd_pipe(Context& ctx, const ParsedArgs& args) {
     }
     if (info->power != PowerState::Off) {
         std::cerr << "bvmenv: stop the VM first (kd-pipe rewrites its .vmx)\n";
+        return 2;
+    }
+    if (!args.has("unsafe-kd") && !args.has("off")) {
+        std::cerr << "bvmenv: kd over the serial pipe is DISABLED by default on this host.\n"
+                     "  A KD pipe on a VMware guest correlates with every host freeze we have\n"
+                     "  seen (Kernel-Power 41, no dump): with the pipe in server mode a slow or\n"
+                     "  absent debugger client can block a vCPU, and the documented client mode\n"
+                     "  did not connect here.\n"
+                     "  Use breadcrumbs instead (`bvmenv crash` + `bvmenv state`, DbgPrint via\n"
+                     "  the guest log), or pass --unsafe-kd if you accept the risk.\n";
         return 2;
     }
     const bool enable = !args.has("off");

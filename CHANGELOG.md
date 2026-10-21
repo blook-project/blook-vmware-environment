@@ -4,6 +4,24 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.14] - 2026-10-21
+
+### Changed - KD is disabled by default (host safety)
+
+- **`kd-pipe` / `create --kd-pipe` now refuse unless `--unsafe-kd` is passed.** A
+  KD pipe on a VMware guest correlates with every host freeze we have seen
+  (15:45, 17:37, 17:54 - Kernel-Power 41, no dump). With the pipe in server mode
+  (VMware = server, kd = client) a slow or absent client can block a vCPU; the
+  documented client mode (`serial0.pipe.endPoint = "client"`, kd creates the
+  server) was implemented and tested here but **did not connect**
+  (`Waiting for pipe ... Waiting to reconnect`, 0 bytes captured). Until that is
+  understood, kd is opt-in only.
+- `kd-pipe --off` still works without the flag (disabling is always safe).
+- `doctor` reports `kd_pipe_configured` (managed VMs whose serial0 is a pipe) and
+  `kd_pipe_running`, so a leftover pipe is visible before a VM is started.
+- Recommended alternative for hung-guest evidence: breadcrumbs (`bvmenv crash`
+  to force 0xE2, `bvmenv state` for host-side classification, guest log files).
+
 ## [0.1.13] - 2026-10-21
 
 ### Added
