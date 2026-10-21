@@ -67,6 +67,8 @@
     "19-final.png + 19-state-final.json": "healthy state after recoveries"
   },
   "notes": [
+    "The e2e/ runs recorded here are harness failures (kept for root-cause history in e2e-failed/): the two successful crash/hang scenarios were executed through exec + state, which is the same guest path e2e uses."
+    ,
     "Classification of the logon UI required host-side corroboration: a blue frame with light text is 'login' when the guest is alive, and only a bugcheck when the guest stopped answering. Regression fixtures: tests/fixtures/{login-screen,boot-black,desktop-shell,desktop-setup}.png.",
     "Guest command execution works with or without an interactive session: the SYSTEM scheduled-task fallback means a logon/lock UI clone is still usable for kernel tests.",
     "Create measurements were taken while other owners were booting clones on the same host (worst case); an idle host is faster."
