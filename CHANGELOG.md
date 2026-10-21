@@ -4,6 +4,24 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.6] - 2026-10-21
+
+### Added
+
+- `bvmenv.exec.v1` reports the **effective guest-command timeout**
+  (`exec_timeout_s`), so "did `--timeout` reach the guest?" is answerable from
+  `result.json` / `exec.json` instead of requiring a repro. Verified: e2e with
+  `--timeout 5` shows `exec_timeout_s: 5`.
+
+### Known issue (tracked)
+
+- When the guest command ignores its budget, `exec --timeout` correctly reports
+  `timed_out: true` (direct runs verified), but in an `e2e` run the same command
+  can be reported as `timed_out: false, exit_code: 0` because the SYSTEM
+  fallback's exit-code file appears after the wait window (the guest task keeps
+  running). `exec_timeout_s` now makes this visible; the classification fix is
+  the next item (treat "artifact appeared after the deadline" as a timeout).
+
 ## [0.1.5] - 2026-10-21
 
 ### Fixed

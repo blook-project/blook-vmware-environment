@@ -557,6 +557,7 @@ ExecResult Vmware::run_once(const ExecRequest& request, bool system) {
     const std::string job_guest = guest_dir + "\\job.cmd";
 
     const auto started = std::chrono::steady_clock::now();
+    result.exec_timeout_s = static_cast<long long>(request.timeout.count());
     guest_mkdirs(request.vm, guest_dir);
 
     // The job runs from a batch file pushed into the guest: each line is

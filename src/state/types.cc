@@ -163,6 +163,7 @@ json::Value ExecResult::to_json() const {
     value["ok"] = ran && !timed_out && exit_code == 0;
     value["ran"] = ran;
     value["timed_out"] = timed_out;
+    value["exec_timeout_s"] = exec_timeout_s;
     value["exit_code"] = exit_code;
     value["run_id"] = run_id;
     value["guest_dir"] = guest_dir;

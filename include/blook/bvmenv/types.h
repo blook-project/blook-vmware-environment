@@ -118,6 +118,9 @@ struct ExecResult {
     std::string out;  // captured stdout (truncated to a sane tail for JSON)
     std::string err;
     std::chrono::milliseconds duration{0};
+    // Effective guest-command timeout actually applied by the harness. Makes the
+    // "did --timeout reach the guest?" question answerable from result.json.
+    long long exec_timeout_s = 0;
     std::string error;
 
     [[nodiscard]] json::Value to_json() const;
