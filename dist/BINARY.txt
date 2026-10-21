@@ -1,1 +1,1 @@
-latest stable build: bvmenv-1fbf9ec.exe (git 1fbf9ec, version 0.1.7)
+latest stable build: bvmenv-ee0e22a.exe (git ee0e22a, version 0.1.8)

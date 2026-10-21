@@ -4,6 +4,18 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.9] - 2026-10-21
+
+### Fixed
+
+- The SYSTEM-fallback **success** path of `exec`/`e2e` bypassed the sticky-timeout
+  rule, so a command killed at its budget could still be reported `pass` when its
+  exit-code artifact arrived late. Verified: `e2e --timeout 5` against a 40 s
+  command now reports `outcome: "timeout"`, `timed_out: true`.
+- `guest_mkdirs` (used by `push`/`e2e` bundle staging) ran only through the user
+  session, so pushes timed out on a guest sitting at the logon/lock UI. It now
+  goes through `run()` and therefore the SYSTEM fallback like `exec`.
+
 ## [0.1.8] - 2026-10-21
 
 ### Changed
