@@ -1,156 +1,192 @@
-# blook-vmware-environment: produce the lab evidence set.
+# blook-vmware-environment: produce the lab evidence set from real runs.
 #
-#   pwsh scripts/demo-e2e.ps1 [-Vm vm-drv] [-Out docs/evidence/20261021-lab-run]
+#   pwsh scripts/demo-e2e.ps1 [-Vm vm-evidence] [-Out <dir>]
 #
-# Requires: a built `bvmenv.exe`, a base image (`bvmenv base build`) and the
-# in-guest test drivers (`xmake f --guest_drivers=y; xmake -y guest-bsod-driver;
-# xmake -y guest-hang-driver`).
+# Requirements: a built bvmenv.exe, a base image (`bvmenv base build`) and the
+# in-guest artifacts (`xmake f --guest_drivers=y`, then build
+# guest-vtx-probe / guest-bsod-driver / guest-hang-driver).
 #
-# The script exercises, and records evidence for:
-#   * base image contract (base verify)
-#   * linked-clone create + exec + push/pull
-#   * nested virtualisation inside the guest (CPUID VMX)
-#   * a real bugcheck (KeBugCheckEx in a test driver) -> state classifies bsod
-#   * a real hard hang (HIGH_LEVEL spin in a test driver) -> state classifies hang
-#   * reset recovery after both
+# Every step has an external hard timeout so a wedged guest can never hang the
+# script. No dry runs: every artifact comes from this host's VMware.
 param(
-    [string]$Vm = 'vm-drv',
+    [string]$Vm = 'vm-evidence',
     [string]$Out = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-$exe = Join-Path $repo 'build\windows\x64\releasedbg\bvmenv.exe'
+$bin = Join-Path $repo 'build\windows\x64\releasedbg'
+$exe = Join-Path $bin 'bvmenv.exe'
 if (-not (Test-Path $exe)) { throw "bvmenv.exe not built: $exe (run: xmake f -y; xmake -y)" }
 if (-not $Out) { $Out = Join-Path $repo ("docs\evidence\" + (Get-Date -Format 'yyyyMMdd') + '-lab-run') }
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
-
 $env:BVMENV_VM_ROOT = if ($env:BVMENV_VM_ROOT) { $env:BVMENV_VM_ROOT } else { 'C:\blook-vms' }
-$bvmenv = { param([string[]]$Arguments) & $exe @Arguments }
 $log = Join-Path $Out 'run.log'
-function Step([string]$Message) {
-    $line = "[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $Message
-    Write-Host $line
-    Add-Content -LiteralPath $log -Value $line
-}
-function Run([string[]]$Arguments) {
-    Step ("bvmenv " + ($Arguments -join ' '))
-    $out = & $exe @Arguments 2>&1
-    $code = $LASTEXITCODE
-    $out | ForEach-Object { Add-Content -LiteralPath $log -Value $_ }
-    return @{ Output = ($out -join "`n"); Code = $code }
-}
+Set-Content -LiteralPath $log -Value '' -Encoding UTF8
 
 $summary = [ordered]@{
     schema     = 'bvmenv.evidence.v1'
     created_at = (Get-Date).ToString('o')
+    host       = $env:COMPUTERNAME
     vm         = $Vm
     steps      = @()
 }
-function Add-Step([string]$Name, [hashtable]$Data) {
-    $summary.steps += [ordered]@{ name = $Name; data = $Data }
+
+function Step([string]$Message) {
+    $line = '[{0}] {1}' -f (Get-Date -Format 'HH:mm:ss'), $Message
+    Write-Host $line
+    Add-Content -LiteralPath $log -Value $line
+}
+
+function Invoke-Bvmenv {
+    param([string[]]$Arguments, [int]$TimeoutSeconds = 600)
+    Step ('$ bvmenv ' + ($Arguments -join ' '))
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $exe
+    $quoted = $Arguments | ForEach-Object {
+        if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ }
+    }
+    $psi.Arguments = ($quoted -join ' ')
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $proc = [System.Diagnostics.Process]::Start($psi)
+    $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
+    $stderrTask = $proc.StandardError.ReadToEndAsync()
+    if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
+        try { $proc.Kill($true) } catch { }
+        Step "  TIMEOUT after ${TimeoutSeconds}s; killed"
+        return @{ Code = -1; Out = ''; Err = ''; TimedOut = $true }
+    }
+    $stdout = $stdoutTask.Result
+    $stderr = $stderrTask.Result
+    Step "  exit=$($proc.ExitCode)"
+    Add-Content -LiteralPath $log -Value $stdout
+    if ($stderr) { Add-Content -LiteralPath $log -Value $stderr }
+    return @{ Code = $proc.ExitCode; Out = $stdout; Err = $stderr; TimedOut = $false }
+}
+
+function Timed([string]$Name, [string[]]$Arguments, [int]$TimeoutSeconds = 600) {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $r = Invoke-Bvmenv -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds
+    $sw.Stop()
+    $summary.steps += [ordered]@{
+        name      = $Name
+        args      = ($Arguments -join ' ')
+        exit_code = $r.Code
+        timed_out = $r.TimedOut
+        seconds   = [math]::Round($sw.Elapsed.TotalSeconds, 1)
+    }
+    return $r
+}
+
+function Save([string]$Name, $Result) {
+    $path = Join-Path $Out $Name
+    $Result.Out | Set-Content -LiteralPath $path -Encoding utf8
+    return $path
 }
 
 # ---------------------------------------------------------------------------
-Step '1. base image contract'
-$verify = Run @('base', 'verify', '--json')
-$verify | Out-File -Encoding utf8 (Join-Path $Out '01-base-verify.json')
-Copy-Item (Join-Path $Out '01-base-verify.json') (Join-Path $Out '01-base-verify.txt') -Force
-Add-Step 'base verify' @{ exit_code = $verify.Code; artifact = '01-base-verify.json' }
-if ($verify.Code -ne 0) { Step 'WARNING: base verify failed, continuing for evidence' }
+Step '1. environment: doctor'
+$r = Timed 'doctor' @('doctor', '--json') 120
+$null = Save '00-doctor.json' $r
 
-# ---------------------------------------------------------------------------
-Step "2. create linked clone $Vm"
-$reset = Run @('reset', $Vm, '--json')
-if ($reset.Code -ne 0) {
-    $create = Run @('create', $Vm, '--json')
-    $create | Out-File -Encoding utf8 (Join-Path $Out '02-create.json')
-    Add-Step 'create' @{ exit_code = $create.Code; artifact = '02-create.json' }
-} else {
-    $reset | Out-File -Encoding utf8 (Join-Path $Out '02-reset.json')
-    Add-Step 'reset (existing fork)' @{ exit_code = $reset.Code; artifact = '02-reset.json' }
+Step '2. base image contract: fast + deep'
+$r = Timed 'base-verify-fast' @('base', 'verify', '--json') 120
+$null = Save '01-base-verify-fast.json' $r
+$r = Timed 'base-verify-deep' @('base', 'verify', '--deep', '--json') 900
+$null = Save '02-base-verify-deep.json' $r
+
+Step "3. linked clone $Vm from snapshot 'base'"
+$r = Timed 'create' @('create', $Vm, '--json') 300
+$null = Save '03-create.json' $r
+$r = Timed 'wait-ready' @('wait-ready', $Vm, '--timeout', '240', '--json') 300
+$null = Save '04-wait-ready.json' $r
+
+Step '4. guest execution: stdout/stderr/exit code, timeout enforcement'
+$r = Timed 'exec' @('exec', $Vm, '--timeout', '120', '--', 'cmd /c ver & whoami & echo BVMENV-EXEC-OK') 180
+$null = Save '05-exec.txt' $r
+$r = Timed 'exec-timeout' @('exec', $Vm, '--timeout', '5', '--json', '--', 'ping -n 40 127.0.0.1') 90
+$null = Save '06-exec-timeout.json' $r
+
+Step '5. push / pull'
+$bundle = Join-Path $Out 'bin'
+New-Item -ItemType Directory -Force -Path $bundle | Out-Null
+foreach ($f in 'guest-nested-virt-check.exe', 'guest-bsod-driver.sys', 'guest-hang-driver.sys', 'guest-vtx-probe.sys') {
+    $src = Join-Path $bin $f
+    if (Test-Path $src) { Copy-Item $src $bundle -Force }
 }
+$r = Timed 'push' @('push', $Vm, $bundle, 'C:\blook\bin', '--json') 180
+$null = Save '07-push.json' $r
+$r = Timed 'pull' @('pull', $Vm, 'C:\blook\provision.json', (Join-Path $Out '08-guest-provision.json')) 120
+$null = Save '09-pull.json' $r
 
-Step '3. exec + push/pull'
-$exec = Run @('exec', $Vm, '--timeout', '120', '--', 'cmd /c ver & whoami & echo BVMENV-EXEC-OK')
-$exec.Output | Out-File -Encoding utf8 (Join-Path $Out '03-exec.txt')
-Add-Step 'exec' @{ exit_code = $exec.Code; artifact = '03-exec.txt' }
+Step '6. state on a healthy desktop'
+$r = Timed 'state-desktop' @('state', $Vm, '--json', '--samples', '3', '--screenshot', (Join-Path $Out '10-desktop.png')) 180
+$null = Save '10-state-desktop.json' $r
 
-$binDir = Join-Path $Out 'bin'
-New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-Copy-Item (Join-Path $repo 'build\windows\x64\releasedbg\guest-nested-virt-check.exe') $binDir -ErrorAction SilentlyContinue
-Copy-Item (Join-Path $repo 'build\windows\x64\releasedbg\guest-bsod-driver.sys') $binDir -ErrorAction SilentlyContinue
-Copy-Item (Join-Path $repo 'build\windows\x64\releasedbg\guest-hang-driver.sys') $binDir -ErrorAction SilentlyContinue
-$push = Run @('push', $Vm, $binDir, 'C:\blook\bin')
-Add-Step 'push drivers' @{ exit_code = $push.Code }
-$pull = Run @('pull', $Vm, 'C:\blook\provision.json', (Join-Path $Out '04-guest-provision.json'))
-Add-Step 'pull provision.json' @{ exit_code = $pull.Code; artifact = '04-guest-provision.json' }
+Step '7. state on a real logon screen (autologon disabled for one boot)'
+$null = Timed 'disable-autologon' @('exec', $Vm, '--timeout', '60', '--', 'reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon /t REG_SZ /d 0 /f') 120
+$null = Timed 'stop' @('stop', $Vm) 120
+$null = Timed 'start' @('start', $Vm, '--no-wait') 120
+Start-Sleep -Seconds 45
+$r = Timed 'state-login' @('state', $Vm, '--json', '--samples', '2', '--screenshot', (Join-Path $Out '11-login.png')) 180
+$null = Save '11-state-login.json' $r
+$null = Timed 'reset-after-login' @('reset', $Vm, '--json') 180
+$null = Timed 'ready-after-login' @('wait-ready', $Vm, '--timeout', '180', '--json') 240
 
-# ---------------------------------------------------------------------------
-Step '4. nested virtualisation check inside the guest'
-$nestedBundle = Join-Path $Out 'bundle-nested'
-New-Item -ItemType Directory -Force -Path $nestedBundle | Out-Null
-Copy-Item (Join-Path $binDir 'guest-nested-virt-check.exe') $nestedBundle
-$e2eNested = Run @('e2e', $Vm, '--bundle', $nestedBundle, '--entry', 'guest-nested-virt-check.exe',
-    '--timeout', '120', '--reset-on', 'never', '--out', $Out)
-$e2eNested.Output | Out-File -Encoding utf8 (Join-Path $Out '05-e2e-nested-virt.json')
-Add-Step 'e2e nested virt' @{ exit_code = $e2eNested.Code; artifact = '05-e2e-nested-virt.json' }
+Step '8. nested virtualisation inside the guest (CPUID VMX + IA32_FEATURE_CONTROL)'
+$nested = Join-Path $Out 'bundle-nested'
+New-Item -ItemType Directory -Force -Path $nested | Out-Null
+Copy-Item (Join-Path $bundle 'guest-nested-virt-check.exe') $nested -ErrorAction SilentlyContinue
+$r = Timed 'e2e-nested-virt' @('e2e', $Vm, '--bundle', $nested, '--entry', 'guest-nested-virt-check.exe', '--timeout', '120', '--reset-on', 'never', '--out', (Join-Path $Out 'e2e')) 600
+$null = Save '12-e2e-nested-virt.json' $r
 
-# ---------------------------------------------------------------------------
-Step '5. BSOD scenario (KeBugCheckEx in a test driver)'
-$bsodBundle = Join-Path $Out 'bundle-bsod'
-New-Item -ItemType Directory -Force -Path $bsodBundle | Out-Null
-Copy-Item (Join-Path $binDir 'guest-bsod-driver.sys') $bsodBundle
+Step '9. real BSOD (KeBugCheckEx in a test driver)'
+$bsod = Join-Path $Out 'bundle-bsod'
+New-Item -ItemType Directory -Force -Path $bsod | Out-Null
+Copy-Item (Join-Path $bundle 'guest-bsod-driver.sys') $bsod -Force
 @'
 @echo off
-rem Register + start the bugcheck driver; the guest will bugcheck immediately.
-sc create bvmenobsod type= kernel binPath= C:\Windows\System32\drivers\guest-bsod-driver.sys >nul 2>&1
+copy /y "%~dp0guest-bsod-driver.sys" C:\Windows\System32\drivers\bvmenobsod.sys >nul
+sc create bvmenobsod type= kernel binPath= C:\Windows\System32\drivers\bvmenobsod.sys >nul 2>&1
 sc start bvmenobsod
 exit /b %ERRORLEVEL%
-'@ | Set-Content -LiteralPath (Join-Path $bsodBundle 'run-bsod.cmd') -Encoding ASCII
-$e2eBsod = Run @('e2e', $Vm, '--bundle', $bsodBundle, '--entry', 'run-bsod.cmd',
-    '--timeout', '180', '--reset-on', 'failure', '--out', $Out)
-$e2eBsod.Output | Out-File -Encoding utf8 (Join-Path $Out '06-e2e-bsod.json')
-Add-Step 'e2e bsod' @{ exit_code = $e2eBsod.Code; artifact = '06-e2e-bsod.json' }
+'@ | Set-Content -LiteralPath (Join-Path $bsod 'run-bsod.cmd') -Encoding ASCII
+$r = Timed 'e2e-bsod' @('e2e', $Vm, '--bundle', $bsod, '--entry', 'run-bsod.cmd', '--timeout', '45', '--reset-on', 'never', '--out', (Join-Path $Out 'e2e')) 900
+$null = Save '13-e2e-bsod.json' $r
 
-Step '6. reset after BSOD'
-$resetBsod = Run @('reset', $Vm, '--json')
-$resetBsod | Out-File -Encoding utf8 (Join-Path $Out '07-reset-after-bsod.json')
-Add-Step 'reset after bsod' @{ exit_code = $resetBsod.Code; artifact = '07-reset-after-bsod.json' }
-$readyAfterBsod = Run @('wait-ready', $Vm, '--timeout', '300', '--json')
-$readyAfterBsod | Out-File -Encoding utf8 (Join-Path $Out '08-ready-after-bsod.json')
+Step '10. reset after BSOD (target < 20 s)'
+$r = Timed 'reset-after-bsod' @('reset', $Vm, '--json') 180
+$null = Save '14-reset-after-bsod.json' $r
+$r = Timed 'wait-ready-after-bsod' @('wait-ready', $Vm, '--timeout', '180', '--json') 240
+$null = Save '15-ready-after-bsod.json' $r
 
-# ---------------------------------------------------------------------------
-Step '7. hard hang scenario (HIGH_LEVEL spin in a test driver)'
-$hangBundle = Join-Path $Out 'bundle-hang'
-New-Item -ItemType Directory -Force -Path $hangBundle | Out-Null
-Copy-Item (Join-Path $binDir 'guest-hang-driver.sys') $hangBundle
+Step '11. real hard hang (HIGH_LEVEL spin in a test driver)'
+$hang = Join-Path $Out 'bundle-hang'
+New-Item -ItemType Directory -Force -Path $hang | Out-Null
+Copy-Item (Join-Path $bundle 'guest-hang-driver.sys') $hang -Force
 @'
 @echo off
-rem Register + start the hang driver: the guest stops scheduling ~3 s later.
-sc create bvmenohang type= kernel binPath= C:\Windows\System32\drivers\guest-hang-driver.sys >nul 2>&1
+copy /y "%~dp0guest-hang-driver.sys" C:\Windows\System32\drivers\bvmenohang.sys >nul
+sc create bvmenohang type= kernel binPath= C:\Windows\System32\drivers\bvmenohang.sys >nul 2>&1
 sc start bvmenohang
-rem stay alive briefly so the harness can sample the state after the hang
-ping -n 8 127.0.0.1 >nul
+ping -n 10 127.0.0.1 >nul
 exit /b 0
-'@ | Set-Content -LiteralPath (Join-Path $hangBundle 'run-hang.cmd') -Encoding ASCII
-$e2eHang = Run @('e2e', $Vm, '--bundle', $hangBundle, '--entry', 'run-hang.cmd',
-    '--timeout', '120', '--reset-on', 'failure', '--out', $Out)
-$e2eHang.Output | Out-File -Encoding utf8 (Join-Path $Out '09-e2e-hang.json')
-Add-Step 'e2e hang' @{ exit_code = $e2eHang.Code; artifact = '09-e2e-hang.json' }
+'@ | Set-Content -LiteralPath (Join-Path $hang 'run-hang.cmd') -Encoding ASCII
+$r = Timed 'e2e-hang' @('e2e', $Vm, '--bundle', $hang, '--entry', 'run-hang.cmd', '--timeout', '40', '--reset-on', 'never', '--out', (Join-Path $Out 'e2e')) 900
+$null = Save '16-e2e-hang.json' $r
 
-Step '8. reset after hang'
-$resetHang = Run @('reset', $Vm, '--json')
-$resetHang | Out-File -Encoding utf8 (Join-Path $Out '10-reset-after-hang.json')
-$readyAfterHang = Run @('wait-ready', $Vm, '--timeout', '300', '--json')
-$readyAfterHang | Out-File -Encoding utf8 (Join-Path $Out '11-ready-after-hang.json')
-Add-Step 'reset after hang' @{ exit_code = $resetHang.Code; artifact = '10-reset-after-hang.json' }
+Step '12. reset after hard hang (target < 20 s)'
+$r = Timed 'reset-after-hang' @('reset', $Vm, '--json') 180
+$null = Save '17-reset-after-hang.json' $r
+$r = Timed 'wait-ready-after-hang' @('wait-ready', $Vm, '--timeout', '180', '--json') 240
+$null = Save '18-ready-after-hang.json' $r
 
-# ---------------------------------------------------------------------------
-Step '9. final state'
-$state = Run @('state', $Vm, '--json', '--samples', '3')
-$state.Output | Out-File -Encoding utf8 (Join-Path $Out '12-final-state.json')
-Add-Step 'final state' @{ exit_code = $state.Code; artifact = '12-final-state.json' }
+Step '13. final healthy state'
+$r = Timed 'state-final' @('state', $Vm, '--json', '--samples', '3', '--screenshot', (Join-Path $Out '19-final.png')) 180
+$null = Save '19-state-final.json' $r
 
-$summary | ConvertTo-Json -Depth 6 | Out-File -Encoding utf8 (Join-Path $Out 'summary.json')
+$summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Out 'summary.json') -Encoding utf8
 Step "evidence written to $Out"

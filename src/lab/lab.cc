@@ -709,6 +709,27 @@ BaseVerifyReport Lab::base_verify(const std::string& name, bool deep) {
 // base build
 // ---------------------------------------------------------------------------
 void Lab::base_build(const BaseBuildOptions& options) {
+    // A failed build must never leave a half-built `base`: `create` would fork
+    // from a broken image and every downstream e2e would fail mysteriously.
+    try {
+        base_build_impl(options);
+    } catch (...) {
+        const fs::path dir = cfg_.base_dir();
+        try {
+            vmware_.stop("base", true);
+        } catch (...) {
+        }
+        try {
+            vmware_.delete_vm("base");
+        } catch (...) {
+        }
+        remove_tree(dir);
+        ensure_dir(dir);
+        throw;
+    }
+}
+
+void Lab::base_build_impl(const BaseBuildOptions& options) {
     if (!is_process_elevated()) {
         throw Error(
             "`base build` needs an elevated process (diskpart/dism/bcdboot); run it from "
@@ -904,7 +925,7 @@ void Lab::base_build(const BaseBuildOptions& options) {
     vmx.set("sata0:1.startConnected", "TRUE");
     vmx.set("ethernet0.present", "TRUE");
     vmx.set("ethernet0.connectionType", "nat");
-    vmx.set("ethernet0.virtualDev", "vmxnet3");
+    vmx.set("ethernet0.virtualDev", "e1000e");  // PCI, no PCIe slot needed
     vmx.set("ethernet0.addressType", "generated");
     vmx.set("serial0.present", "TRUE");
     vmx.set("serial0.fileType", "file");
@@ -914,6 +935,16 @@ void Lab::base_build(const BaseBuildOptions& options) {
     vmx.set("svga.vramSize", "33554432");
     vmx.set("sound.present", "FALSE");
     vmx.set("usb.present", "FALSE");
+    // PCIe root ports: the working hand-written layout. A vmxnet3 NIC needs a
+    // free PCIe slot; without these bridges the VM fails to power on with
+    //   [msg.pci.noslotavail] No PCIe slot available for Ethernet0
+    vmx.set("pciBridge0.present", "TRUE");
+    for (int bridge = 4; bridge <= 7; ++bridge) {
+        const std::string prefix = "pciBridge" + std::to_string(bridge);
+        vmx.set(prefix + ".present", "TRUE");
+        vmx.set(prefix + ".virtualDev", "pcieRootPort");
+        vmx.set(prefix + ".functions", "8");
+    }
     vmx.set("isolation.tools.hgfs.disable", "TRUE");
     vmx.set("msg.autoAnswer", "TRUE");
     vmx.set("uuid.action", "create");
@@ -924,7 +955,30 @@ void Lab::base_build(const BaseBuildOptions& options) {
 
     // 8. Boot it: the guest provisions itself (VMware Tools + test baseline)
     //    and powers off when done.
-    vmware_.start("base", false);
+    try {
+        vmware_.start("base", false);
+    } catch (const std::exception& e) {
+        // Surface the real reason from the hypervisor log, not just "canceled".
+        std::string reason;
+        const fs::path log = cfg_.base_dir() / "vmware.log";
+        if (file_exists(log)) {
+            const std::string text = tail_of(read_text(log), 200 * 1024);
+            for (const char* needle : {"msg.pci.noslotavail", "power on failed", "Msg_Post",
+                                       "Cannot open", "not supported"}) {
+                const std::size_t pos = text.rfind(needle);
+                if (pos == std::string::npos)
+                    continue;
+                const std::size_t eol = text.find_first_of("\r\n", pos);
+                reason = trim(
+                    text.substr(pos, eol == std::string::npos ? std::string::npos : eol - pos));
+                break;
+            }
+        }
+        if (!reason.empty()) {
+            throw Error(std::string(e.what()) + " - hypervisor log: " + reason);
+        }
+        throw;
+    }
     const auto deadline =
         std::chrono::steady_clock::now() + std::chrono::seconds(options.ready_timeout_s);
     bool finished = false;

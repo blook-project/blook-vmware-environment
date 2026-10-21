@@ -94,6 +94,7 @@ class Lab {
 
    private:
     StateReport sample_once(const std::string& name, const StateOptions& options);
+    void base_build_impl(const BaseBuildOptions& options);
 
     Config cfg_;
     Vmware& vmware_;
