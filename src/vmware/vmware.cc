@@ -348,10 +348,10 @@ ToolInfo Vmware::tools_info(const std::string& name) const {
     info.version = value_after_colon(text, "version");
     info.running = to_lower(value_after_colon(text, "running")) == "true";
     const std::string version_status = to_lower(value_after_colon(text, "versionStatus"));
-    const std::string support = to_lower(value_after_colon(text, "vmSupportStatus"));
-    if (support == "not_running") {
-        info.state = ToolsState::Unknown;  // VM powered off: cannot tell
-    } else if (version_status == "no_tools") {
+    // `vmSupportStatus` reports "not_running" even for a healthy running guest on
+    // this Workstation build, so it must not decide the state: relying on it made
+    // `wait-ready` (and therefore `base verify --deep`) time out on a good clone.
+    if (version_status == "no_tools") {
         info.state = ToolsState::NotInstalled;
     } else if (info.running) {
         info.state = ToolsState::Running;
@@ -569,6 +569,9 @@ ExecResult Vmware::run_once(const ExecRequest& request, bool system) {
     // the only reliable way to capture the code of the preceding command in a
     // VIX-hosted batch (a plain `%ERRORLEVEL%` expands to nothing there).
     job += "setlocal EnableDelayedExpansion\r\n";
+    for (const auto& assignment : request.env) {
+        job += "set " + assignment + "\r\n";
+    }
     if (request.workdir && !request.workdir->empty()) {
         job += "cd /d " + batch_quote(*request.workdir) + "\r\n";
     }

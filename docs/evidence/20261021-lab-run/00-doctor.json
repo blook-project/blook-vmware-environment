@@ -1,0 +1,89 @@
+{
+  "attached_vhds": [
+    "2\t500GB\t\\\\?\\scsi#disk&ven_msft&prod_virtual_disk#2&1f4adffe&0&000001#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}"
+  ],
+  "checks": [
+    {
+      "name": "vmrun.exe present",
+      "ok": true
+    },
+    {
+      "name": "vmcli.exe present",
+      "ok": true
+    },
+    {
+      "name": "vmware-vdiskmanager.exe present",
+      "ok": true
+    },
+    {
+      "name": "VMAuthdService running",
+      "ok": true
+    },
+    {
+      "name": "Windows ISO present",
+      "ok": true
+    },
+    {
+      "name": "guest assets present",
+      "ok": true
+    },
+    {
+      "name": "base image present",
+      "ok": true
+    },
+    {
+      "name": "base snapshot present",
+      "ok": true
+    },
+    {
+      "name": "OCR engine available",
+      "ok": true
+    }
+  ],
+  "config_ok": true,
+  "elevated": false,
+  "ok": false,
+  "schema": "bvmenv.doctor.v1",
+  "vm_root": "C:\\blook-vms",
+  "vmrun_version": "Invalid argument: --version\r\nvmrun version 1.17.0.24995812\r\n\r\nUsage: vmrun [AUTHENTICATION-FLAGS] COMMAND [PARAMETERS]\r\n\r\n\r\n\r\nAUTHENTICATION-FLAGS\r\n--------------------\r\nThese must appear before the command and any command parameters.\r\n\r\n   -T <hostType> (ws|fusion||player)\r\n   -vp <password for encrypted virtual machine>\r\n   -gu <userName in guest OS>\r\n   -gp <password in guest OS>\r\n\r\n\r\n\r\nPOWER COMMANDS           PARAMETERS           DESCRIPTION\r\n--------------           ----------           -----------\r\nstart                    Path to vmx file     Start a VM or Team\r\n                         [gui|nogui]\r\n\r\nstop                     Path to vmx file     Stop a VM or Team\r\n                         [hard|soft]\r\n\r\nreset                    Path to vmx file     Reset a VM or Team\r\n                         [hard|soft]\r\n\r\nsuspend                  Path to vmx file     Suspend a VM or Team\r\n                         [hard|soft]\r\n\r\npause                    Path to vmx file     Pause a VM\r\n\r\nunpause                  Path to vmx file     Unpause a VM\r\n\r\n\r\n\r\nSNAPSHOT COMMANDS        PARAMETERS           DESCRIPTION\r\n-----------------        ----------           -----------\r\nlistSnapshots            Path to vmx file     List all snapshots in a VM\r\n                         [showTree]\r\n\r\nsnapshot                 Path to vmx file     Create a snapshot of a VM\r\n                         Snapshot name\r\n\r\ndeleteSnapshot           Path to vmx file     Remove a snapshot from a VM\r\n                         Snapshot name\r\n                         [andDeleteChildren]\r\n\r\nrevertToSnapshot         Path to vmx file     Set VM state to a snapshot\r\n                         Snapshot name\r\n\r\n\r\n\r\nHOST NETWORK COMMANDS    PARAMETERS           DESCRIPTION\r\n---------------------    ----------           -----------\r\nlistHostNetworks                              List all networks in the host\r\n\r\nlistPortForwardings      Host network name    List all available port forwardings on a host network\r\n\r\n\r\nsetPortForwarding        Host network name    Add or update a port forwarding on a host network\r\n                         Protocol\r\n                         Host port\r\n                         Guest ip\r\n                         Guest port\r\n                         [Description]\r\n\r\ndeletePortForwarding     Host network name    Delete a port forwarding on a host network\r\n                         Protocol\r\n                         Host port\r\n\r\n\r\n\r\n\r\nGUEST OS COMMANDS        PARAMETERS           DESCRIPTION\r\n-----------------        ----------           -----------\r\nrunProgramInGuest        Path to vmx file     Run a program in Guest OS\r\n                         [-noWait]\r\n                         [-activeWindow]\r\n                         [-interactive]\r\n                         Complete-Path-To-Program\r\n                         [Program arguments]\r\n\r\nfileExistsInGuest        Path to vmx file     Check if a file exists in Guest OS\r\n                         Path to file in guest\r\n\r\ndirectoryExistsInGuest   Path to vmx file     Check if a directory exists in Guest OS\r\n                         Path to directory in guest\r\n\r\nsetSharedFolderState     Path to vmx file     Modify a Host-Guest shared folder\r\n                         Share name\r\n                         Host path\r\n                         writable | readonly\r\n\r\naddSharedFolder          Path to vmx file     Add a Host-Guest shared folder\r\n                         Share name\r\n                         New host path\r\n\r\nremoveSharedFolder       Path to vmx file     Remove a Host-Guest shared folder\r\n                         Share name\r\n\r\nenableSharedFolders      Path to vmx file     Enable shared folders in Guest\r\n                         [runtime]\r\n\r\ndisableSharedFolders     Path to vmx file     Disable shared folders in Guest\r\n                         [runtime]\r\n\r\nlistProcessesInGuest     Path to vmx file     List running processes in Guest OS\r\n\r\nkillProcessInGuest       Path to vmx file     Kill a process in Guest OS\r\n                         process id\r\n\r\nrunScriptInGuest         Path to vmx file     Run a script in Guest OS\r\n                         [-noWait]\r\n                         [-activeWindow]\r\n                         [-interactive]\r\n                         Interpreter path\r\n                         Script text\r\n\r\ndeleteFileInGuest        Path to vmx file     Delete a file in Guest OS\r\n                         Path in guest            \r\n\r\ncreateDirectoryInGuest   Path to vmx file     Create a directory in Guest OS\r\n                         Directory path in guest  \r\n\r\ndeleteDirectoryInGuest   Path to vmx file     Delete a directory in Guest OS\r\n                         Directory path in guest  \r\n\r\nCreateTempfileInGuest    Path to vmx file     Create a temporary file in Guest OS\r\n\r\nlistDirectoryInGuest     Path to vmx file     List a directory in Guest OS\r\n                         Directory path in guest\r\n\r\nCopyFileFromHostToGuest  Path to vmx file     Copy a file from host OS to guest OS\r\n                         Path on host\r\n                         Path in guest\r\n\r\nCopyFileFromGuestToHost  Path to vmx file     Copy a file from guest OS to host OS\r\n                         Path in guest\r\n                         Path on host\r\n\r\nrenameFileInGuest        Path to vmx file     Rename a file in Guest OS\r\n                         Original name\r\n                         New name\r\n\r\ntypeKeystrokesInGuest    Path to vmx file     Type Keystrokes in Guest OS\r\n                         keystroke string\r\n\r\nconnectNamedDevice       Path to vmx file     Connect the named device in the Guest OS\r\n                         device name\r\n\r\ndisconnectNamedDevice    Path to vmx file     Disconnect the named device in the Guest OS\r\n                         device name\r\n\r\ncaptureScreen            Path to vmx file     Capture the screen of the VM to a local file\r\n                         Path on host\r\n\r\nwriteVariable            Path to vmx file     Write a variable in the VM state\r\n                         [runtimeConfig|guestEnv|guestVar]\r\n                         variable name\r\n                         variable value\r\n\r\nreadVariable             Path to vmx file     Read a variable in the VM state\r\n                         [runtimeConfig|guestEnv|guestVar]\r\n                         variable name\r\n\r\ngetGuestIPAddress        Path to vmx file     Gets the IP address of the guest\r\n                         [-wait]\r\n\r\n\r\n\r\nGENERAL COMMANDS         PARAMETERS           DESCRIPTION\r\n----------------         ----------           -----------\r\nlist                                          List all running VMs\r\n\r\nupgradevm                Path to vmx file     Upgrade VM file format, virtual hw\r\n\r\ninstallTools             Path to vmx file     Install Tools in Guest\r\n\r\ncheckToolsState          Path to vmx file     Check the current Tools state\r\n\r\ndeleteVM                 Path to vmx file     Delete a VM\r\n\r\nclone                    Path to vmx file     Create a copy of the VM\r\n                         Path to destination vmx file\r\n                         full|linked\r\n                         [-snapshot=Snapshot Name]\r\n                         [-cloneName=Name]\r\n\r\n\r\n\r\nTemplate VM COMMANDS     PARAMETERS           DESCRIPTION\r\n---------------------    ----------           -----------\r\ndownloadPhotonVM         Path for new VM      Download Photon VM\r\n\r\n\r\n\r\n\r\n\r\nExamples:\r\n\r\n\r\nStarting a virtual machine with Workstation on a Windows host\r\n   vmrun -T ws start \"c:\\my VMs\\myVM.vmx\"\r\n\r\n\r\nRunning a program in a virtual machine with Workstation on a Windows host with Windows guest\r\n   vmrun -T ws -gu guestUser -gp guestPassword runProgramInGuest \"c:\\my VMs\\myVM.vmx\" \"c:\\Program Files\\myProgram.exe\"\r\n\r\n\r\nCreating a snapshot of a virtual machine with Workstation on a Windows host\r\n   vmrun -T ws snapshot \"c:\\my VMs\\myVM.vmx\" mySnapshot\r\n\r\n\r\nReverting to a snapshot with Workstation on a Windows host\r\n   vmrun -T ws revertToSnapshot \"c:\\my VMs\\myVM.vmx\" mySnapshot\r\n\r\n\r\nDeleting a snapshot with Workstation on a Windows host\r\n   vmrun -T ws deleteSnapshot \"c:\\my VMs\\myVM.vmx\" mySnapshot\r\n\r\n\r\nEnabling Shared Folders with Workstation on a Windows host\r\n   vmrun -T ws enableSharedFolders \"c:\\my VMs\\myVM.vmx\"",
+  "vms": [
+    {
+      "base": true,
+      "name": "base",
+      "power": "off",
+      "vmx": "C:\\blook-vms\\base\\blook-base.vmx"
+    },
+    {
+      "base": false,
+      "name": "vm-drv",
+      "power": "on",
+      "vmx": "C:\\blook-vms\\vms\\vm-drv\\vm-drv.vmx"
+    },
+    {
+      "base": false,
+      "name": "vm-drv-lite",
+      "power": "on",
+      "vmx": "C:\\blook-vms\\vms\\vm-drv-lite\\vm-drv-lite.vmx"
+    },
+    {
+      "base": false,
+      "name": "vm-evidence",
+      "power": "on",
+      "vmx": "C:\\blook-vms\\vms\\vm-evidence\\vm-evidence.vmx"
+    },
+    {
+      "base": false,
+      "name": "vm-kchannel",
+      "power": "on",
+      "vmx": "C:\\blook-vms\\vms\\vm-kchannel\\vm-kchannel.vmx"
+    },
+    {
+      "base": false,
+      "name": "vm-kdu",
+      "power": "on",
+      "vmx": "C:\\blook-vms\\vms\\vm-kdu\\vm-kdu.vmx"
+    }
+  ],
+  "vmware_dir": "Y:\\Program Files (x86)\\VMware\\VMware Workstation"
+}
+

@@ -31,11 +31,11 @@ function Test-Reg {
 
 # --- bcdedit / test signing / kernel debug --------------------------------
 $bcd = (& bcdedit.exe /enum '{current}' 2>&1) -join "`n"
-Add-Check 'bcdedit testsigning on' ($bcd -match '(?m)^testsigning\s+Yes') 'bcdedit /set {current} testsigning on'
-Add-Check 'bcdedit nointegritychecks on' ($bcd -match '(?m)^nointegritychecks\s+Yes') 'advapi no integrity checks'
-Add-Check 'kernel debugging on' ($bcd -match '(?m)^debug\s+Yes') 'bcdedit /debug on'
+Add-Check 'bcdedit testsigning on' ($bcd -match 'testsigning\s+Yes') 'bcdedit /set {current} testsigning on'
+Add-Check 'bcdedit nointegritychecks on' ($bcd -match 'nointegritychecks\s+Yes') 'advapi no integrity checks'
+Add-Check 'kernel debugging on' ($bcd -match 'debug\s+Yes') 'bcdedit /debug on'
 Add-Check 'kernel debug over serial' ($bcd -match 'debugport:\s*1') 'debugport:1 baudrate:115200'
-Add-Check 'hypervisorlaunchtype off' ($bcd -match '(?m)^hypervisorlaunchtype\s+Off') 'no Hyper-V: nested VT-x is free for the lab hypervisor'
+Add-Check 'hypervisorlaunchtype off' ($bcd -match 'hypervisorlaunchtype\s+Off') 'no Hyper-V: nested VT-x is free for the lab hypervisor'
 
 # --- bugcheck behaviour ---------------------------------------------------
 $crash = 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl'
@@ -65,6 +65,24 @@ if (Test-Path -LiteralPath 'C:\blook\nested-virt-check.exe') {
     $detail = ($out -replace "`r?`n", ' ').Trim()
 }
 Add-Check 'VT-x visible in guest (CPUID VMX)' $nested $detail
+
+# --- nested virtualisation ground truth (ring 0 probe from provisioning) ---
+$vtxOk = $false
+$vtxDetail = 'provision.json not readable'
+$provisionRaw = Get-Content -LiteralPath 'C:\blook\provision.json' -Raw -ErrorAction SilentlyContinue
+if ($provisionRaw) {
+    try {
+        $provision = $provisionRaw | ConvertFrom-Json
+        $vtx = $provision.nested_virt
+        if ($vtx) {
+            $vtxOk = [bool]$vtx.ok
+            $vtxDetail = ("cpuid_vmx={0} lock={1} vmxon_outside_smx={2} feature_control={3} vmx_basic={4}" -f `
+                    $vtx.cpuid_vmx, $vtx.feature_control_locked, $vtx.vmxon_outside_smx, `
+                    $vtx.feature_control_low, $vtx.vmx_basic_low)
+        }
+    } catch { $vtxDetail = "parse error: $($_.Exception.Message)" }
+}
+Add-Check 'ring-0 VT-x probe (IA32_FEATURE_CONTROL)' $vtxOk $vtxDetail
 
 # --- provisioning ---------------------------------------------------------
 $provision = Get-Content -LiteralPath 'C:\blook\provision.json' -Raw

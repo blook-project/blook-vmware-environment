@@ -15,7 +15,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-$bin = Join-Path $repo 'build\windows\x64\releasedbg'
+$bin = Join-Path $repo 'build\windows\x64\release'
+if (-not (Test-Path (Join-Path $bin 'guest-bsod-driver.sys'))) { $bin = Join-Path $repo 'build\windows\x64\releasedbg' }
 $exe = Join-Path $bin 'bvmenv.exe'
 if (-not (Test-Path $exe)) { throw "bvmenv.exe not built: $exe (run: xmake f -y; xmake -y)" }
 if (-not $Out) { $Out = Join-Path $repo ("docs\evidence\" + (Get-Date -Format 'yyyyMMdd') + '-lab-run') }

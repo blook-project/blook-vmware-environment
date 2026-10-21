@@ -33,7 +33,7 @@ ParsedArgs parse_args(const std::vector<std::string>& argv,
             } else {
                 parsed.flags[key] = "1";
             }
-            if (key == "args" || key == "collect") {
+            if (key == "args" || key == "collect" || key == "env") {
                 parsed.multi.emplace(key, parsed.flags[key]);
             }
             continue;

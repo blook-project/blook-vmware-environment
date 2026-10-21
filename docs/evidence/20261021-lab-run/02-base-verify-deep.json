@@ -1,0 +1,30 @@
+{
+  "checks": [
+    {
+      "name": "snapshot \"base\" exists on the base image",
+      "ok": true
+    },
+    {
+      "name": "base image is powered off",
+      "ok": true
+    },
+    {
+      "name": "base disk present",
+      "ok": true
+    },
+    {
+      "name": "base metadata present",
+      "ok": true
+    },
+    {
+      "name": "verification run completed",
+      "ok": false
+    }
+  ],
+  "notes": [
+    "VM 'verify-20261021T044418Z' started but never became ready (see state/screenshot)"
+  ],
+  "ok": false,
+  "schema": "bvmenv.base-verify.v1"
+}
+

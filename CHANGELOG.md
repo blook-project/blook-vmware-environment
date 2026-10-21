@@ -36,3 +36,34 @@ and the project uses [Semantic Versioning](https://semver.org/).
   stop-code extraction and the JSON report contracts.
 - GitHub Actions CI (build + unit tests + CLI smoke test + clang-format check)
   and a tag driven release workflow that publishes a package zip and SHA256.
+
+### Fixed
+
+- Guest execution was broken in three independent ways and is now covered by
+  `bvmenv exec <vm> --self-test` (mkdir, copy, run, stdout, exit code, timeout):
+  batch-file content was quoted with argv rules (`\"` is not a batch escape),
+  the exit code was read with `%ERRORLEVEL%` inside a VIX-hosted batch where it
+  expands to nothing (now `setlocal EnableDelayedExpansion` + `!ERRORLEVEL!`),
+  and the non-elevated VIX script path needs an interactive session, so guests at
+  the logon/lock UI failed outright (now falls back to a SYSTEM task).
+- `wait-ready` no longer blocks on a user-session guest call: it probes through
+  the same fallback path, so a fresh clone reports ready without auto-logon, and
+  it fails fast for unknown or powered-off VMs.
+- `base build`: generated `.vmx` had no PCIe root ports and used `vmxnet3`, so
+  power-on failed with `[msg.pci.noslotavail]`; now `e1000e` + `pciBridge4..7`,
+  and the hypervisor's own reason is surfaced in the error message. A failed
+  build no longer leaves a half-built `base` behind.
+- Screen classification no longer reports a false BSOD for the Windows logon UI:
+  a blue frame with a live guest is `login`; `bsod` requires bugcheck OCR text or
+  a dead guest (plus an unchanged frame when sampling).
+- Guest test drivers/probes are signed with the lab certificate during
+  `base build` (staged into the guest Root/TrustedPublisher stores), so they load
+  with `testsigning on`; the VT-x probe now reports its raw
+  `IA32_FEATURE_CONTROL` / `IA32_VMX_BASIC` values.
+- `base verify` parsing false positives (bcdedit `hypervisorlaunchtype Off`,
+  `HypervisorPresent=false`) are gone; `base verify` is host-side by default and
+  `--deep` performs the live guest contract and fails on `provision.json.failures`.
+- Host disk safety: bvmenv only ever attaches/detaches its own VHDs by explicit
+  path inside `BVMENV_VM_ROOT` (allowlist + unit tests); `doctor` reports attached
+  file-backed virtual disks read-only, and a failed `base build` on an occupied
+  `V:` stops instead of touching unknown volumes.

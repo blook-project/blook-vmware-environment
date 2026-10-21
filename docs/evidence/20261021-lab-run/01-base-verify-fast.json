@@ -1,0 +1,26 @@
+{
+  "checks": [
+    {
+      "name": "snapshot \"base\" exists on the base image",
+      "ok": true
+    },
+    {
+      "name": "base image is powered off",
+      "ok": true
+    },
+    {
+      "name": "base disk present",
+      "ok": true
+    },
+    {
+      "name": "base metadata present",
+      "ok": true
+    }
+  ],
+  "notes": [
+    "host-side checks only; run `bvmenv base verify --deep` for the live guest contract"
+  ],
+  "ok": true,
+  "schema": "bvmenv.base-verify.v1"
+}
+

@@ -369,6 +369,11 @@ int cmd_exec(Context& ctx, const ParsedArgs& args) {
     request.timeout =
         std::chrono::seconds(parse_ll(args.get("timeout"), ctx.config.default_timeout_s));
     request.elevated = args.has("elevated");
+    {
+        auto range = args.multi.equal_range("env");
+        for (auto it = range.first; it != range.second; ++it)
+            request.env.push_back(it->second);
+    }
     if (args.has("workdir"))
         request.workdir = args.get("workdir");
     if (args.has("self-test")) {

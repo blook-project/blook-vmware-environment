@@ -16,7 +16,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$LogFile = 'C:\blook\provision.log'
+    [string]$LogFile = 'C:\blook\provision.log', [switch]$Repair
 )
 
 $ErrorActionPreference = 'Continue'
@@ -106,8 +106,13 @@ Log ('User: {0} (SYSTEM={1})' -f [System.Security.Principal.WindowsIdentity]::Ge
         ([System.Security.Principal.WindowsIdentity]::GetCurrent().IsSystem))
 
 if (Test-Path -LiteralPath 'C:\blook\provision.done') {
-    Log 'provision.done present, nothing to do'
-    exit 0
+    if (-not $Repair) {
+        Log 'provision.done present, nothing to do'
+        exit 0
+    }
+    Log 'Repair requested: re-running phase 2'
+    Remove-Item -LiteralPath 'C:\blook\provision.done' -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath 'C:\blook\provision.phase2' -Force -ErrorAction SilentlyContinue
 }
 
 $phase1Marker = 'C:\blook\provision.phase1'
@@ -168,6 +173,16 @@ if (-not (Test-Path -LiteralPath $phase1Marker)) {
         Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\SystemGuard' 'Enabled' 0
         Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy' 'VerifiedAndReputablePolicyState' 0
         & bcdedit.exe /set '{current}' hypervisorlaunchtype off | Out-Null
+    }
+
+    Invoke-Step 'install lab test certificate' {
+        # Guest test drivers/probes are signed with the lab certificate created
+        # by the host during `base build`; with testsigning on they load once the
+        # certificate is trusted (Root + TrustedPublisher).
+        $cer = 'C:\blook\blook-lab-test.cer'
+        if (-not (Test-Path -LiteralPath $cer)) { throw "lab signing certificate missing: $cer" }
+        & certutil.exe -addstore -f Root $cer 2>&1 | ForEach-Object { Log ('certutil root: ' + $_) }
+        & certutil.exe -addstore -f TrustedPublisher $cer 2>&1 | ForEach-Object { Log ('certutil publisher: ' + $_) }
     }
 
     Invoke-Step 'test signing + kernel debug' {
@@ -340,8 +355,9 @@ if (-not (Test-Path -LiteralPath $phase2Marker)) {
             testsigning          = ($bcd -match '(?m)^testsigning\s+Yes')
             nointegritychecks    = ($bcd -match '(?m)^nointegritychecks\s+Yes')
             debug                = ($bcd -match '(?m)^debug\s+Yes')
-            hypervisorlaunchtype = ((-not $hypervisorPresent) -and ($bcd -match '(?m)^hypervisorlaunchtype\s+Off'))
-            hypervisor_present   = (-not $hypervisorPresent)
+            hypervisorlaunchtype = ((-not $hypervisorPresent) -and ($bcd -match 'hypervisorlaunchtype\s+Off'))
+            hypervisor_absent    = (-not $hypervisorPresent)
+            hypervisor_present   = $hypervisorPresent
             enablelua            = ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -ErrorAction SilentlyContinue).EnableLUA -eq 0)
             autoreboot_off       = ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' -Name AutoReboot -ErrorAction SilentlyContinue).AutoReboot -eq 0)
             display_params       = ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' -Name DisplayParameters -ErrorAction SilentlyContinue).DisplayParameters -eq 1)

@@ -63,6 +63,19 @@ extern "C" NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT driver_object,
         // MSR access can fault on exotic configurations; report zeros.
     }
 
+    // ZwCreateKey creates only the leaf, so ...\blook must exist first: without
+    // this the probe ran but never wrote its results.
+    UNICODE_STRING parent_path;
+    RtlInitUnicodeString(&parent_path, L"\\Registry\\Machine\\Software\\blook");
+    OBJECT_ATTRIBUTES parent_attributes;
+    InitializeObjectAttributes(&parent_attributes, &parent_path,
+                               OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, nullptr, nullptr);
+    HANDLE parent_key = nullptr;
+    if (NT_SUCCESS(ZwCreateKey(&parent_key, KEY_WRITE, &parent_attributes, 0, nullptr,
+                               REG_OPTION_NON_VOLATILE, nullptr))) {
+        ZwClose(parent_key);
+    }
+
     UNICODE_STRING key_path;
     RtlInitUnicodeString(&key_path, L"\\Registry\\Machine\\Software\\blook\\vtx-probe");
     OBJECT_ATTRIBUTES attributes;

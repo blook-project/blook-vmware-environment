@@ -258,8 +258,18 @@ bool Lab::wait_ready(const std::string& name, std::chrono::seconds timeout) {
         // Non-blocking tools query first; only probe guest ops when Tools says
         // it is running, and always with a bounded timeout.
         const ToolInfo tools = vmware_.tools_info(name);
-        if (tools.state == ToolsState::Running && vmware_.guest_ping(name)) {
-            return true;
+        if (tools.state == ToolsState::Running) {
+            // Probe through run(): it transparently falls back to a SYSTEM
+            // scheduled task at the logon/lock UI, so readiness never depends
+            // on auto-logon having completed.
+            ExecRequest probe;
+            probe.vm = name;
+            probe.command_line = "cmd /c exit 0";
+            probe.timeout = std::chrono::seconds(20);
+            probe.run_id = "ready-" + std::to_string(GetTickCount64());
+            const ExecResult result = vmware_.run(probe);
+            if (result.ran && !result.timed_out && result.exit_code == 0)
+                return true;
         }
         if (std::chrono::steady_clock::now() >= deadline)
             return false;
@@ -644,11 +654,11 @@ BaseVerifyReport Lab::base_verify(const std::string& name, bool deep) {
             CreateOptions options;
             options.name = probe;
             options.wait_ready = true;
-            options.ready_timeout_s = 300;
+            options.ready_timeout_s = 900;  // fresh clone first boot: device setup + logon
             create(options);
         } else if (vmware_.power_state(probe) != PowerState::On) {
             vmware_.start(probe, false);
-            wait_ready(probe, std::chrono::seconds(300));
+            wait_ready(probe, std::chrono::seconds(900));
         }
 
         const fs::path check_script = cfg_.guest_assets / "blook" / "verify.ps1";
@@ -708,6 +718,78 @@ BaseVerifyReport Lab::base_verify(const std::string& name, bool deep) {
 // ---------------------------------------------------------------------------
 // base build
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Guest driver signing
+//
+// The in-guest probes/drivers are test signed with a lab certificate so they
+// load with `testsigning on` (byte-for-byte equal to what a downstream project
+// needs for its own test drivers). The certificate is created once on the host
+// and its public part is staged into the guest trust stores by provisioning.
+// ---------------------------------------------------------------------------
+namespace {
+
+std::string run_and_capture(const std::vector<std::wstring>& argv,
+                            std::chrono::milliseconds timeout = std::chrono::minutes(2)) {
+    ProcessOptions options;
+    options.command_line = build_command_line(argv);
+    options.timeout = timeout;
+    const ProcessResult result = run_process(options);
+    if (result.exit_code != 0) {
+        throw Error("command failed: " + to_utf8(argv.front()) + ": " +
+                    tail_of(trim(result.out + result.err), 400));
+    }
+    return result.out;
+}
+
+// Returns the signing certificate thumbprint, creating the certificate on first
+// use. The public .cer is written next to it for the guest trust stores.
+std::string ensure_signing_cert(const Config& cfg) {
+    const fs::path dir = cfg.vm_root / "_certs";
+    ensure_dir(dir);
+    const fs::path cer = dir / "blook-lab-test.cer";
+    const fs::path cache = dir / "thumbprint.txt";
+    if (file_exists(cache) && file_exists(cer)) {
+        const std::string thumb = trim(read_text(cache));
+        if (!thumb.empty())
+            return thumb;
+    }
+    const std::string script =
+        "$c = Get-ChildItem Cert:\\CurrentUser\\My | Where-Object { $_.Subject -eq "
+        "'CN=blook-lab-test' } | Select-Object -First 1; "
+        "if (-not $c) { $c = New-SelfSignedCertificate -Type CodeSigningCert -Subject "
+        "'CN=blook-lab-test' -CertStoreLocation Cert:\\CurrentUser\\My -KeyExportPolicy "
+        "Exportable -NotAfter (Get-Date).AddYears(5) }; "
+        "Export-Certificate -Cert $c -FilePath '" +
+        to_utf8(cer.wstring()) + "' -Force | Out-Null; $c.Thumbprint";
+    const std::string thumb = trim(run_and_capture(
+        {L"powershell.exe", L"-NoProfile", L"-NonInteractive", L"-Command", to_wide(script)}));
+    if (thumb.size() < 32)
+        throw Error("could not create/read the lab signing certificate");
+    write_text(cache, thumb + "\n");
+    return thumb;
+}
+
+fs::path find_signtool() {
+    const wchar_t* roots[] = {L"Y:\\Program Files (x86)\\Windows Kits\\10\\bin",
+                              L"C:\\Program Files (x86)\\Windows Kits\\10\\bin"};
+    for (const wchar_t* root : roots) {
+        std::error_code ec;
+        if (!fs::is_directory(root, ec))
+            continue;
+        for (const auto& entry : fs::directory_iterator(root, ec)) {
+            if (!entry.is_directory())
+                continue;
+            const fs::path candidate = entry.path() / L"x64" / L"signtool.exe";
+            if (file_exists(candidate))
+                return candidate;
+        }
+    }
+    return {};
+}
+
+}  // namespace
+
 void Lab::base_build(const BaseBuildOptions& options) {
     // A failed build must never leave a half-built `base`: `create` would fork
     // from a broken image and every downstream e2e would fail mysteriously.
@@ -843,6 +925,39 @@ void Lab::base_build_impl(const BaseBuildOptions& options) {
                "@echo off\r\n"
                "rem blook-vmware-environment: insurance kick for guest provisioning.\r\n"
                "if exist C:\\blook\\stage.cmd call C:\\blook\\stage.cmd\r\n");
+
+    // 4b. Test-sign the guest drivers and stage the public certificate. The
+    // VT-x probe and the crash/hang drivers must load with testsigning on, so
+    // they are signed with a lab code-signing certificate that provisioning
+    // adds to the guest's Root + TrustedPublisher stores.
+    {
+        const fs::path signtool = find_signtool();
+        const std::string thumb = ensure_signing_cert(cfg_);
+        int signed_files = 0;
+        for (const auto& entry : fs::directory_iterator(L"V:\\blook")) {
+            if (!entry.is_regular_file())
+                continue;
+            if (to_lower(to_utf8(entry.path().extension().wstring())) != ".sys")
+                continue;
+            if (signtool.empty()) {
+                throw Error(
+                    "signtool.exe not found under Windows Kits\\10\\bin; install the "
+                    "WDK/SDK signing tools to build the base image");
+            }
+            run_and_capture({signtool.wstring(), L"sign", L"/sha1", to_wide(thumb), L"/s", L"My",
+                             L"/fd", L"SHA256", entry.path().wstring()},
+                            std::chrono::minutes(2));
+            ++signed_files;
+        }
+        if (signed_files == 0) {
+            throw Error(
+                "no guest .sys files were staged into V:\\blook; build them with "
+                "`xmake -y guest-vtx-probe` (etc.) first");
+        }
+        const fs::path cer = cfg_.vm_root / "_certs" / "blook-lab-test.cer";
+        fs::copy_file(cer, L"V:\\blook\\blook-lab-test.cer", fs::copy_options::overwrite_existing,
+                      ec);
+    }
 
     // 5. Offline registry: answer file hint + OOBE/autologon pre-seeding.
     //

@@ -85,7 +85,7 @@ gsudo -d .\build\windows\x64\releasedbg\bvmenv.exe base build
 | `create <name> [--cpus N] [--memory M]` | linked clone from the `base` snapshot |
 | `start/stop/reset/delete <name>` | lifecycle; `reset` reverts to the `ready` snapshot |
 | `list [--json]` | VM store inventory |
-| `exec <name> [--timeout S] [--elevated] [--workdir D] -- <cmd>` | run in guest, capture stdout/stderr/exit code |
+| `exec <name> [--timeout S] [--elevated] [--workdir D] -- <cmd>` | run in guest, capture stdout/stderr/exit code; falls back to a SYSTEM task when the guest has no interactive session (`--self-test` asserts the whole round trip) |
 | `push/pull <name> <host> <guest>` | copy files or directories |
 | `state <name> [--json] [--samples N] [--no-ocr]` | host-side state + screen classification + hang detection |
 | `screenshot <name> <out.png>` | host-side console frame capture |

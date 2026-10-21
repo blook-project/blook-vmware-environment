@@ -18,6 +18,14 @@ Consequences for callers:
   token inside the guest and with **no** access to the host.
 * If a payload crashes the guest, the host is unaffected; `state` classifies it
   and `reset` recovers.
+* Execution model: `exec` runs the command as the guest's administrator user
+  when an interactive session exists, and otherwise (logon/lock UI, hung shell)
+  transparently runs the same command line through a **SYSTEM scheduled task**.
+  Both paths are elevated inside the guest; `exit_code`, `stdout`, `stderr` and
+  `timed_out` are reported identically. A timeout is never retried.
+  `bvmenv exec <vm> --self-test` asserts the whole round trip
+  (mkdir → copy → run → stdout → exit code → timeout) and is the fastest way to
+  check that a VM is usable.
 
 ## Host disk safety
 

@@ -101,6 +101,10 @@ struct ExecRequest {
     bool elevated = false;
     bool ignore_exit_code = false;
     std::string run_id;  // optional explicit run id
+    // Extra guest environment variables, injected as set KEY=VALUE lines into
+    // the generated job.cmd so the child process inherits them (an inline
+    // set X=1 && cmd does not survive into the child on this image).
+    std::vector<std::string> env;
 };
 
 struct ExecResult {
