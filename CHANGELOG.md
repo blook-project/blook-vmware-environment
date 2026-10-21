@@ -4,6 +4,17 @@ All notable changes to `blook-vmware-environment` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-10-21
+
+### Added
+
+- `bvmenv kd-log <vm> --reset` attaches kd, resets the VM and captures the boot
+  KD stream (KD must be attached before the guest initialises its debug
+  transport; attaching later only reports `[no_debuggee]`). `--json` now reports
+  `connected` alongside the captured log path.
+- Real KD capture evidence under `docs/evidence/20261021-kd-pipe/`
+  (`Connected to Windows 10 26100 x64 target ...`).
+
 ## [0.1.1] - 2026-10-21
 
 ### Added

@@ -2,6 +2,7 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <thread>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -730,8 +731,24 @@ int cmd_kd(Context& ctx, const ParsedArgs& args) {
     options.command_line = build_command_line(
         {kd.wstring(), L"-k", L"com:pipe,port=" + to_wide(pipe) + L",resets=0,reconnect"});
     options.timeout = std::chrono::seconds(seconds);
-    const ProcessResult result = run_process(options);
+    ProcessResult result;
+    if (args.has("reset")) {
+        // Attach first, then reset the VM so KD catches the boot (a debugger
+        // attached after boot only reports "no_debuggee").
+        std::thread worker([&] { result = run_process(options); });
+        sleep_ms(4000);
+        try {
+            ctx.vmware.reset_power(name);
+            out["reset"] = true;
+        } catch (const std::exception& e) {
+            out["reset_error"] = e.what();
+        }
+        worker.join();
+    } else {
+        result = run_process(options);
+    }
     const std::string log = result.out + result.err;
+    out["connected"] = log.find("Connected to Windows") != std::string::npos;
     write_text(log_path, log);
     out["log_path"] = to_utf8(log_path.wstring());
     out["seconds"] = seconds;

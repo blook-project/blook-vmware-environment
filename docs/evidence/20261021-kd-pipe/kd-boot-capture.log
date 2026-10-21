@@ -1,0 +1,73 @@
+
+************* Preparing the environment for Debugger Extensions Gallery repositories **************
+   ExtensionRepository : Implicit
+   UseExperimentalFeatureForNugetShare : true
+   AllowNugetExeUpdate : true
+   NonInteractiveNuget : true
+   AllowNugetMSCredentialProviderInstall : true
+   AllowParallelInitializationOfLocalRepositories : true
+
+   EnableRedirectToV8JsProvider : false
+
+   -- Configuring repositories
+      ----> Repository : LocalInstalled, Enabled: true
+      ----> Repository : UserExtensions, Enabled: true
+
+>>>>>>>>>>>>> Preparing the environment for Debugger Extensions Gallery repositories completed, duration 0.000 seconds
+
+************* Waiting for Debugger Extensions Gallery to Initialize **************
+
+>>>>>>>>>>>>> Waiting for Debugger Extensions Gallery to Initialize completed, duration 0.015 seconds
+   ----> Repository : UserExtensions, Enabled: true, Packages count: 0
+   ----> Repository : LocalInstalled, Enabled: true, Packages count: 29
+
+Microsoft (R) Windows Debugger Version 10.0.26100.4202 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+Opened \\.\pipe\blook-vm-kdtest-kd
+Kernel Debug Target Status: [no_debuggee]; Retries: [0] times in last [7] seconds.
+Waiting to reconnect...
+KDTARGET: Refreshing KD connection
+Connected to Windows 10 26100 x64 target at (Wed Oct 21 14:19:45.350 2026 (UTC + 8:00)), ptr64 TRUE
+Kernel Debugger connection established.
+Symbol search path is: srv*
+Executable search path is: 
+Windows 10 Kernel Version 26100 MP (4 procs) Free x64
+Product: WinNt, suite: TerminalServer SingleUserTS
+Edition build lab: 26100.1.amd64fre.ge_release.240331-1435
+Kernel base = 0xfffff805`ea600000 PsLoadedModuleList = 0xfffff805`eb4f4fc0
+Debug session time: Wed Oct 21 14:19:45.180 2026 (UTC + 8:00)
+System Uptime: 0 days 0:00:04.080
+GetContextState failed, 0xD0000001
+GetContextState failed, 0xD0000001
+GetContextState failed, 0xD0000001
+GetContextState failed, 0xD0000001
+GetContextState failed, 0xD0000001
+GetContextState failed, 0xD0000001
+**************************************************************************
+Unable to read debugger data block header
+**************************************************************************
+**************************************************************************
+Unable to read debugger data block header
+**************************************************************************
+**************************************************************************
+Unable to read debugger data block header
+**************************************************************************
+**************************************************************************
+Unable to read debugger data block header
+**************************************************************************
+**************************************************************************
+Unable to read debugger data block header
+**************************************************************************
+**************************************************************************
+Unable to read debugger data block header
+**************************************************************************
+**************************************************************************
+Unable to read debugger data block header
+**************************************************************************
+**************************************************************************
+Unable to read debugger data block header
+**************************************************************************
+KDTARGET: Refreshing KD connection
+DriverEntry failed 0xc00000bb for driver \REGISTRY\MACHINE\SYSTEM\ControlSet001\Services\uiomap
+DriverEntry failed 0xc00000bb for driver \REGISTRY\MACHINE\SYSTEM\ControlSet001\Services\NetworkPrivacyPolicy

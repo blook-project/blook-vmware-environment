@@ -137,6 +137,12 @@ file — the only practical way to read `DbgPrint` output, because without a
 debugger the serial log is KD packet noise. The base image already has
 `debug on` + `dbgsettings serial debugport:1 baudrate:115200`.
 
+KD must be attached **before** the guest initialises its debug transport, so use
+`kd-log --reset` (starts kd, then resets the VM) or start kd first and boot
+afterwards; attaching to an already-booted guest only reports `[no_debuggee]`.
+`--json` reports `connected` (whether KD reached the target) next to the log path.
+A real capture lives in [`docs/evidence/20261021-kd-pipe/`](docs/evidence/20261021-kd-pipe).
+
 ## Stable binary for downstream runs
 
 `build/windows/x64/<mode>/bvmenv.exe` is overwritten by builds. CI and the

@@ -91,9 +91,9 @@ int dispatch(Context& ctx, const std::vector<std::string>& argv) {
 
     // Shared flag sets.
     const std::vector<std::string> boolean_flags = {
-        "json",  "verbose",  "force",   "elevated", "hard",     "soft",      "no-start",
-        "start", "no-ocr",   "help",    "all",      "pristine", "deep",      "no-capture",
-        "gui",   "classify", "kd-pipe", "launch",   "log",      "self-test", "no-wait",
+        "json",    "verbose", "force", "elevated",  "hard",    "soft",       "no-start", "start",
+        "no-ocr",  "help",    "all",   "pristine",  "deep",    "no-capture", "gui",      "classify",
+        "kd-pipe", "launch",  "log",   "self-test", "no-wait", "reset",
     };
 
     if (command == "create") {
